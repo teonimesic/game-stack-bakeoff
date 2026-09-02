@@ -1,0 +1,10 @@
+---
+id: 230
+title: 'census.py reads d["stack"] bare: a whole-game record without one dies in a comprehension naming no file'
+status: todo
+priority: 3
+refs: 'eval/tools/census.py:269,275,276,305,326; eval/agent_harness.py population_of (PR #107 tree); LANDS AFTER #107 MERGES — same file, in-flight'
+done_when: 'A fixture record classified whole-game carrying `game` and no `stack` (and a scene variant: `task_class`: scene, no `stack`) makes census.py exit 2 with a CensusError naming the record''s file; same for cost_census.py if the check lands in shared code; pinned in both directions in the module''s selftest (red: the crash shape refuses by name; green: every existing fixture still counts) and any control runner that covers it updated; gates unpiped exit 0'
+---
+
+Reproduced 2026-09-01, main tree: a record carrying `game` but no `stack` makes `python3 eval/tools/census.py --runs-dir <fixture>` die with a bare `KeyError: 'stack'` at census.py:269, exit 1, no path named. This is the exact shape the module refuses three times over elsewhere — a non-object record (line 190), a null `agent` block (line 200) and an unknown `task_class` (line 206) all fail BY NAME, each with a comment saying an error several frames away naming no file is loud and useless. The partition reads `d["stack"]` bare in five places (lines 269, 275, 276, 305, 326) over records guaranteed only `game`; a scene record without `stack` hits the same crash via lines 326-327. NOT closed by PR #107: reproduced against /tmp/p107-verify at its census.py:229 — `population_of` in eval/agent_harness.py validates the class on every record but no key presence. cost_census.py shares the classifier after #107, so the fix belongs where both producers read it (agent_harness, raised by the loaders which already wrap classifier errors naming the file) or in each loader — decide from the file's own conventions. Fixture left at /tmp/p41-fixture/runs (one record: game, no stack); rebuild rather than trust it to persist. The stored tree does not currently hold such a record — this is the fail-loudly-by-name standard the file already holds itself to, applied to the one key it missed.

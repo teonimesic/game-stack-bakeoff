@@ -1,11 +1,12 @@
 ---
 id: 227
 title: cost_census.py and census.py partition the same tree by two rules that agreed when written — 91 vs 92 whole-game records today
-status: in_review
+status: done
 priority: 2
 refs: 'eval/tools/cost_census.py, eval/tools/census.py, eval/SCENES.md, agent_harness.py, tasks/145, CLEANUP-LOG.md pass 34'
 done_when: '1. ONE classifier decides whole-game/scene/spec-change, and ONE definition of NOT_A_RUN, exist in the repository and are imported by both eval/tools/census.py and eval/tools/cost_census.py — agent_harness.py is the natural home (cost_census.py:114 already imports TOKVAL_HARNESS from it). Neither CLI keeps a local literal copy: no `frozenset({"work", "artifacts", "targets"})` outside the shared module, and cost_census.py:120''s "Same test as census.py" comment replaced by the import it describes. 2. cost_census''s whole-game population is task_class-aware, and the scene record it miscounts today is not silently absent: the report states the scene population under a named label (or a counted exclusion), so a skip nobody counts is not the replacement defect. 3. Selftest pins on both sides: a fixture record carrying BOTH `game` and `task_class: scene` classifies as scene in the shared classifier and lands in NEITHER producer''s whole-game population; a mutant that reverts either producer to a local literal partition turns a pin red. 4. Both producers re-run over eval/runs/ (read-only) and AGREE: census.py''s WHOLE-GAME record count equals cost_census''s whole-game records-read count, with the commands, the date and both numbers recorded in this ticket. 5. Gates exit 0 at the branch head, unpiped: docstat.py --sweep, docstat.py --renumbered, tasks.py check, ci_minutes --selftest and --controls; nothing under eval/runs/ written.'
 pr: https://github.com/teonimesic/game-stack-bakeoff/pull/107
+established_by: 'Merge 594841c (PR #107 squash), re-verified on main 2026-09-02: census.py and cost_census.py over the main checkout''s eval/runs both print whole-game 91, scene 1, spec-change 71. cost_census_mutants 42/42 with partition_by_field_presence red and control green; census hand-mutation 19 named failures; wallclock 13/13; NOT_A_RUN identity pins green. Finding #213 allocated at merge; establishment note in the ticket.'
 ---
 
 WHAT IT IS: two producers read the same stored tree. `census.py` is the tree census — it partitions
@@ -203,3 +204,7 @@ Agreement re-run 2026-08-30 after the round-1 fixes, over the main checkout's ev
         -> whole-game trial records read 91; records by population scene 1, spec-change 71,
            whole-game 91
 The numbers in the note above still hold: 91 / 91, scene 1, spec-change 71.
+
+## Established at merge
+
+ESTABLISHED at merge 594841c, re-verified on main 2026-09-02: the two producers read the same stored tree and print the same whole-game count - census.py 'trial records 91', cost_census.py 'whole-game trial records read 91', both reporting 'scene 1, spec-change 71' - so the 92-vs-91 split is closed, and finding #213 is allocated at this merge (the only finding this task warrants: the drift and the pin-satisfied-by-wrong-cause lesson; the repair itself is task 227's deliverable, not a finding). Both-direction pins landed with the branch: cost_census_mutants partition_by_field_presence 42/42, control green; census hand-mutation 19 named failures; wallclock pool_populations 13/13; NOT_A_RUN identity pins in manifest and tier1_census. done_when clause 4's agreement record: commands run over the main checkout's eval/runs read-only, 2026-08-30 by the branch and re-run 2026-09-02 at merge, both print 91/91.

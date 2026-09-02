@@ -3759,3 +3759,1061 @@ zero mentions, never a subject; heading verified — "Count what the stored tree
 holds, so no document has to remember."). It is the producer behind AGENTS.md's
 keep-current table and one withdrawn register entry (WR-tree-census-one-level is about
 its numbers) — the tool whose figures live documents quote has never itself been read.
+
+## Pass 41 — 2026-09-01 — eval/tools/census.py (749 lines, read whole) — 1 DEFECT FILED (task 230), blocked on PR #107 landing
+
+**First, the coverage correction.** Pass 40's pointer below says "grep over this log
+before this entry: zero mentions". That grep used the full path `eval/tools/census.py`,
+which matches nothing; the bare substring matches 26 lines — sibling tool names
+(`tier1_census.py`, `cost_census.py`), register prose, and two prior pointers. What is
+true and what mattered: **no pass heading ever took census.py as its subject.** Pass 25's
+"Not opened" note calling it a "prior subject" traced to the 2026-08-27 `eval/tools/`
+directory pass, which read the directory for GATE REACHABILITY (46 tools classified by
+purpose), not any file's content. Never read whole before this pass. The lesson is the
+log's own rule 12 shape: say what was grepped FOR, and at what address.
+
+Pointer from pass 40. Read in one read. The classifier region (lines 80–144:
+`WHOLEGAME_KEY`, `TASK_CLASSES`, `_ABSENT`, `task_class_of`, `NOT_A_RUN`, the
+`harness_of` import) is **in-flight** — PR #107 moves all of it into
+`eval/agent_harness.py` so the two census producers stop spelling their own partition —
+so every finding was cross-checked against `/tmp/p107-verify` before filing.
+
+**Sound, and a lot of it.** Refuses rather than reporting zero, twice (missing tree,
+empty tree), each as `CensusError` exit 2 with the address printed beside every count.
+Depth-independent search with the #127 archive-wrapper case in the selftest, and the
+agent-authored skip COUNTED and reported rather than silent. `_priced` refuses three
+cost shapes that are numbers to a reader and not to an aggregate — bool (an `int` to
+`isinstance`), NaN/inf (one makes the whole total NaN), absent — plus the foreign
+harness whose USD is another vendor's price list (#159), and each exclusion is COUNTED,
+not just dropped (#36). `null` vs absent `task_class` separated by a sentinel, with the
+absent-reads-as-game claim argued as a fact about the corpus rather than a default.
+The selftest states its known answer before measuring, pins the crash shapes by name,
+and asserts both halves of every partition (pooled AND not pooled).
+
+**THE FIND — the module's own named shape, unfixed for one key.** `load_records`
+refuses a non-object record (line 190), a null `agent` block (line 200) and an unknown
+`task_class` (line 206) **by name**, each with a comment saying an error several frames
+away naming no file is loud and useless. The partition then reads `d["stack"]` bare in
+five places (269, 275, 276, 305, 326) over records guaranteed only `game`. Reproduced
+2026-09-01: a record carrying `game` and no `stack` dies with a bare
+`KeyError: 'stack'` at census.py:269, exit 1, no path named — and a scene variant hits
+the same crash at lines 326–327. **Survives PR #107**: reproduced against
+`/tmp/p107-verify` at its line 229; `population_of` in the PR's `agent_harness.py`
+validates the class on every record but no key presence. FILED as task 230, with the
+fixture recipe and the shared-classifier placement question (after #107, both
+producers classify through `agent_harness`, which is where a key-presence refusal
+belongs if the loaders are to name the file). The ticket records the dependency: **same
+file as the in-flight PR, lands after #107 merges** — so it is queued, not dispatched.
+
+Noted, not filed: the `specchange` section carries no `harness` counter while its three
+sibling sections do (asymmetry in a diagnostic block, not a sum anyone quotes); a
+selftest comment says "until pull request 21" for what the register would call #36
+(harmless, and comments are archive). The queue tool's own suggestion — re-read
+`eval/FINDINGS.md` for anything filed and never acted on — is taken up next pass
+rather than folded into this one, which was already a file subject.
+
+Next pointer: **`eval/FINDINGS.md` + `eval/findings/`, read as a backlog rather than as
+a log** — the sweep the heartbeat has asked for twice: which findings state open work
+that was never filed as a task, which name producers that have since been built (their
+"instead" is now runnable), and which are actionable-but-orphaned. Heading verified:
+`eval/findings/*.md` bodies, `eval/FINDINGS.md` index, #19–#212. This is a different
+kind of subject — a pass over the log's open questions, not one file — and the queue's
+open count (5, of which 4 blocked or held) is the reason to run it now.
+
+## Pass 42 — 2026-09-01 — eval/FINDINGS.md + eval/findings/ read as a BACKLOG (194 findings triaged for open work never acted on) — 1 UNOWNED OPEN ITEM FOUND AND ITS TRIGGER MADE MECHANICAL
+
+The queue's own suggestion, offered three times as its open count fell to 4 blocked-or-held.
+Ran early rather than waiting for the monitor's next firing: the heartbeat had reported
+counters still three hours running, and this was the only authorised work available. Method:
+the index read whole (194 rows); a marker grep over the six body files
+(`still open`, `not yet established`, `unresolved`, `would need`, `not established`,
+`unmeasured`, `remains to be`) surfaced 45 lines; every candidate section read with context;
+each "filed as its own task" claim checked against `tasks/` status lines; each settled
+question checked against `DECISIONS.md`, not memory.
+
+**Closed before this pass, verified against artifacts — the log's open markers outlive their
+closures, which is the log working as designed but costs every future reader a re-derivation:**
+
+| open marker | closed by |
+|---|---|
+| #40 "why #40 is still open, and what would close it" | the section after it: closed on evidence, Unity measured mid-pack, 8 of 8 |
+| #84 "other criteria in the same class, not yet audited" | finding #88: both candidates measured, both clean |
+| #82 "Still open": g4_platformer__unity__t0 dies en route | "recorded as its own task" = `tasks/18`, status done |
+| the scene shift estimator's "own ticket" | `tasks/174`, status done |
+| #183 "no criterion was repaired; tasks/157–160 carry them" | `tasks/157`–`160`, all four done |
+| #104's starter-baseline hazard | settled inside the finding: baselines preserved under `eval/runs/<run>/starter-baselines/`, `repack.py` refuses unchecked packs |
+| whether spend tracks a cap; paced vs truncated | `DECISIONS.md` "No run is bounded by a money figure" (2026-08-23); the no-cap runs are the recorded configuration |
+| #172's unmeasured scene-ramp spread | standing decision 2026-08-24 (spaced, uncapped, exclusive); the real-data ask is held `tasks/145` |
+
+**THE FIND — #153's disable verification has never fired, and nothing carried the trigger.**
+`certifies-nothing.md` states the limit: the skillspector disable (2026-08-24) "is not yet
+verified to work — the pull request that disabled it touches no skill file, so its zero
+attachments are zero for the wrong reason. The next skill diff settles it." Verified never
+fired: every `.agents/skills/` change since is a direct push to main (`57af4a6` 08-29,
+`a3e0f1a`/`b0e0004`/`5e6b1cf` 08-30); the only merged pull request in the window (#98, 08-30)
+touches `eval/RUNS.md` and one judge tool. The condition needs a skill diff **through a pull
+request**, and the session that next produces one is a dispatched agent or a merge-time
+orchestrator — neither reads #153. REPAIRED in this pass, smallest mechanism that fires at the
+right moment: one paragraph in the **dispatch skill's merge procedure**
+(`.agents/skills/dispatch/SKILL.md`, after the gate list) — a branch touching `.agents/skills/`
+must count SkillSpector attachments on its pull request and record the count beside the switch
+in `DECISIONS.md`. A todo task was considered and rejected: nothing could dispatch it until a
+skill PR happened, so it would have sat in the queue as permanent undispatchable todo — the
+queue is for work, not watches.
+
+Noted, not filed: the open-marker table above is exactly the shape "a rule you must remember
+to re-derive" takes in prose — but `eval/FINDINGS.md` is the archive, superseded readings stay
+by design, and each closure is adjacent to its marker in the same body. The cost is one
+verification per future reader; rewriting closed sections would falsify the record.
+
+Next pointer: **`eval/tools/docstat.py`** — heading-verified never a whole-file subject across
+all 41 prior passes (the 2026-08-27 `eval/tools/` entry was reachability, and pass 39 read its
+CONTROL, `findings_control.py`, not the file). It is the producer behind the sweep, the
+findings count, the range check, the withdrawn register and the renumber triage — the gate
+every live-document claim in this repository passes through. Its census-trigger derivation
+lives in `DECISIONS.md` (task 92); the file itself is unread.
+
+## Pass 43 — 2026-09-01 — eval/tools/docstat.py (6005 lines, read whole) — THE #70 PACK-LABEL GATE WAS NEVER PINNED; #70's "Pinned both ways" CLAIM MADE TRUE; 1 REDUNDANT CORPUS SCAN REMOVED
+
+Pass 42's pointer. Read whole over two sittings. Four suspicions raised while reading; each
+verified against live artifacts before acting; **three dissolved on measurement, one survived,
+and it is the pass's finding.**
+
+**THE FIND — the pack-label gate has run since 2026-08-22 with no pin anywhere, and finding #70
+says "Pinned both ways."** `git log --all -S pack_label_pins` is empty; no pin suite references
+the check; nothing else exercises it. The gate fires only on real defects, so its entire
+observable history is "0 rows over a clean corpus" — byte-identical to a check that cannot fire
+(AGENTS.md rule 15's exact shape). The false claim sits in the ARCHIVE
+(`eval/findings/documentation.md`, the #70 section), so the repair **adds the pins rather than
+editing the archive**: the archive's job is to record what was believed, and what was believed
+here was wrong until today.
+
+REPAIRED in this pass, TDD red→green: `_pack_label_hits` extracted verbatim from the sweep loop
+so the pins drive the same code the sweep runs, on text in memory — not a re-implementation
+beside it (task 113's lesson: a control that recomputes its expectation from its own copy agrees
+with every mutant of the copy and none of the subject). `_pack_label_pins`: 11 cases — 4 red
+(the defect shape plus each marker of the alternation: glob, `__seed`, `repeats7`), 6 green
+(single round; the correct join key; each exemption on the use the finding blesses), and 1 green
+THE CHANNEL (rule 7): the defect excused by `mapping` in its own trailing comment, pinned
+as-is so any tightening of the exemption moves that row consciously. Wired into `--selftest`
+after `_bare_flag_pins` and into `--sweep` after `_count_trigger_pins`; `pack_seen` counter and
+summary clause added (163 modules — agrees with the measured live corpus). Red confirmed first
+(NameError on `_pack_label_hits`), then green: selftest 213 PASS, 0 pins wrong.
+
+**The gate caught its own pins.** The first sweep run after the pins landed went RED with 5
+rows — all 5 the pins' own fixture strings, because the check reads `*.py` and now scans
+docstat.py itself. Repair: the `["label"]` token split across an implicit string concatenation,
+so every fixture stays byte-identical at runtime while no physical line of the pins file
+matches the trigger. The pins verify the split: one fixture was initially mis-split
+(`reps[0][""label']` — a doubled quote) and the red pin failed on it, catching the defect before
+any sweep run saw it. A malformed split fails loudly; a weakened exemption would not.
+
+Measured and NOT filed, with the reason: the substring exemption (`mapping`/`manifest` anywhere
+in the line) is load-bearing in exactly its loose form. Live corpus 2026-09-01: 163 modules
+scanned, 26 carry a multi-round marker, 3 trigger lines — all in `eval/judge/field.py`, all 3
+exempted for a use #70 itself blesses (resolving through the mapping; reading a manifest). The
+obvious tightening — the exemption word must PRECEDE the trigger — breaks a correct live line
+in field.py. An exemption-tightening task was considered and rejected: it would prescribe a
+repair toward a measured false positive, and the channel the loose form leaves open is now
+pinned green instead, which is the fail-loud version of the same vigilance.
+
+Folded in, one variable: `_check_withdrawal_register()` ran twice on the sweep's clean path
+(once discarding its summary, once re-run for the summary alone — a full-corpus scan each
+time). Now one call, summary reused. Output verified byte-identical clause by clause against
+the pre-change run.
+
+Examined and judged sound (so the next pass does not redo them): LEGACY_BARE_IDS exact at 18
+(no slack note + clean exit ⇒ no drift); recursive `**` glob does not descend into
+dot-directories (measured in a throwaway tree) — agent worktrees under `.claude/` are excluded
+from the pack-label scan doubly, by the dot rule and by REPO=eval/; corpus pins include a
+hostile GIT_DIR test and a planted-register control; GIT_* env vars scrubbed in `_git_at`/
+`_git_bytes`; the fail-closed refusals hold (`_tracked_paths` raises on git failure,
+`read_findings_census` refuses rather than reporting 0); the renumbered corpus pins are wrapped
+so a pin that cannot run reddens rather than passes; HARNESS_TRIGGER's inert `judge/`
+alternative is recorded rather than repaired — its loose boundary is deliberate (it admits
+`regrade_wholegame.py`, which the 4-name trigger it replaced missed); `_DELIBERATELY_FAKE`'s
+`plant\w*` covers every inflection (the one-inflection failure class); both-direction pins
+throughout are red on REAL historical blobs (1f6fb65, 75dde71), not synthetic strings. The
+money-unit gate's closed-class predicate and the census predicate's 0/28 pin record were
+verified against DECISIONS.md, not memory.
+
+Cost of the pass: one sweep cycle went red on the pins' own fixtures (a live demonstration the
+trigger fires on real input — the exact property whose absence was the finding), and four gates
+run unpiped at the end, all green: `docstat.py --sweep`, `docstat.py --renumbered`,
+`tasks.py check`, `eval/tools/ci_minutes.py --controls`. (The last of those was first invoked at
+the wrong address, `eval/ci_minutes.py` — the rule-12 row about aiming at an unverified path,
+firing again on the writer of the row.)
+
+Next pointer: **`eval/tools/withdrawn_control.py` (391 lines)** — heading-verified 0 mentions
+across all prior passes; never a subject. It is the control harness for the withdrawal register
+(docstat.py credits it with five mutants each flipping the control), and the register is one of
+the sweep's gates — an instrument whose controls deserve the same read the instrument got.
+
+## Pass 44 — 2026-09-01 — eval/tools/withdrawn_control.py (391 lines, read whole) — THE #54 PRINCIPLE APPLIED TO 1 OF 5 CONTROLS; withdrawn_control'S MUTANTS NOW RUN BY DEFAULT
+
+Pass 43's pointer. Read whole, then everything verified live rather than believed: the 54
+controls run green at HEAD (13 register entries, agreeing with the sweep's count); all five
+mutants flip (41, 52, 50, 42, 53 of 54 — the inversion of the docstring's claim, now re-measured
+rather than cited).
+
+Examined and judged sound (so the next pass does not redo them): nine control classes, each with
+its reason stated in the docstring, each mapped to at least one live row; mutants patch FUNCTIONS
+never constants, with a before/after guard that catches a patch rebinding nothing (the
+constant-patched-after-import failure the file names as #12's corollary); the archive partition
+asserted in code for 8 live and 7 archive paths rather than promised by prose; HISTORICAL's limit
+stated rather than smoothed — `WR-20-of-24` predates the repository's first commit, its row
+proves the narrower thing, and the docstring says so; duty cycle clean — the unmutated run is a
+CI step (gates.yml:256), covered by the register's generic `*_control.py` clause, and its
+fail-closed behaviour on a shallow clone is documented in the checkout comment with the measured
+exits; per-entry fire-ability is exercised for ALL 13 entries on every sweep by the anchor check,
+so the 4 planted POSITIVEs are not the only thing standing between the patterns and silence; the
+hit-format parsing the controls lean on (`split(":")[0]`, `split("states `")`) verified against
+live output.
+
+**THE FIND — corpus_control's own docstring states the principle, and it was applied to 1 of the
+5 controls that need it.** Five controls carry a `--mutate` mode; no workflow step and no git
+hook invokes `--mutate` on ANY of them; only `corpus_control` runs its mutants in its DEFAULT
+pass (`sweep()`, whose docstring records the exact cost of the other shape: "no mutant ever ran
+outside an operator's terminal. A suite whose mutants are opt-in is a suite whose mutants are
+the one thing nobody re-runs", raised by CodeRabbit on PR #54). The four others —
+`withdrawn_control`, `fragment_control`, `findings_control`, `backup_evidence_control` — run
+bare in CI, so their mutants are person-invoked only, and no left-out row records that. For
+`withdrawn_control` it is worse than duty cycle: its five flips are the recorded justification
+for the withdrawal register gating at all (docstat.py's wiring note credits them), and their
+continued ability to fire was asserted nowhere. This is pass 43's finding one level up: an
+ability-to-fire claim whose truth nothing mechanical maintains.
+
+REPAIRED here for the subject file: `withdrawn_control.sweep()` — the corpus_control pattern
+verbatim in structure (clean pass, then every mutant with a leak-checked restore between runs,
+SURVIVED reported and exit 1 on any survivor), `--clean-only` preserving the controls-alone
+mode, `--mutate NAME` unchanged. The historical corpora are cached per process (`_CORPUS_CACHE`)
+so six control runs pay the three `git show`s once: the step goes 5s → 14.8s measured
+(`time python3 eval/tools/withdrawn_control.py`), not the naive 6×. Both directions proven
+(rule 15): the real sweep kills 5 of 5; a deliberately neutered `file_scope` in a throwaway copy
+reads SURVIVED at exit 1. `PATCHED` now names the rebindable attributes once, for the single-
+mutant guard and the sweep's leak check both.
+
+Filed, not done: task 231 converts the three remaining siblings and names `evidence_set_control`
+as mention-only (its mutants are unreachable by anyone, but its whole script is left out of CI
+with a recorded reason — a different question). The register gains a narrative row for the
+converted step, with the timing command written beside the figure per the count rule. No register
+COUNT moved: no step added or removed (`ci_minutes --gates` reads steps), and the `takes` spread
+is a dated reading of the last 12 runs that the register itself says to re-read rather than
+trust.
+
+Cost of the pass: the gates step this file owns goes from ~5s to ~15s, buying "the five flips
+run on every push" — the same trade corpus_control accepted at PR #54. Four gates re-run unpiped
+at the end (sweep, renumbered, tasks check, ci_minutes --controls), plus the converted step
+itself.
+
+Next pointer: **`eval/tools/triage_control.py` (232 lines)** — 0 mentions across all prior
+passes, verified by count rather than by heading-reading; never a subject. It is the control
+harness for the triage register, the sweep gate sitting next to the withdrawal register this
+pass read — the smallest of the never-examined controls, and the pattern this pass and pass 43
+established says the controls of gates deserve the read the gates got.
+
+Measured on the way out, gate working as designed: the first sweep after the register row was
+written went RED on it — the row cited "PR #54", and `WR-arch-ux-redundancy`'s match pattern is
+bare `#54`, so a pull-request number and a withdrawn finding's citation are the same string in a
+live document. The AGENTS.md namespace paragraph counts four hand-allocated namespaces that have
+all collided; this is a cross-namespace one, and the register cannot see the difference — in
+markdown, `#54` IS the finding citation, so the pattern is right by construction and the wording
+yielded: "PR 54", with the reason written beside it so the next editor does not restore the
+sigil and re-derive the red. (`corpus_control`'s docstring keeps "PR #54" freely — `.py` files
+are not in the register's corpus. Line 449's "PR #16" stays clean because no entry matches 16.)
+
+## Pass 45 — 2026-09-01 — eval/tools/triage_control.py (232 lines, read whole) — 1 PHANTOM NAME IN A LIVE DOCSTRING, and the pass-44 gap measured as not applying here
+
+Subject of pass 44's pointer, read in full and run at HEAD before anything was judged. Green:
+43 register entries, 0 problems; 37 undecidable rows, 37 paired.
+
+JUDGED SOUND, recorded so the next pass does not redo it:
+
+- **The pass-44 gap (opt-in mutants nobody re-runs) does not apply, and the reason is
+  structural, not historical.** withdrawn_control's clean pass reads the real corpus, where
+  green is the expected result — a neutered mechanism is invisible there, so its mutants are
+  the only can-fail proof and their opt-in status was the defect. triage_control's run instead
+  PLANTS defects and asserts specific reds: UNMATCHED, AMBIGUOUS, ABSENT, SELF and UNPARSEABLE
+  each name the problem string they require, so every run is its own can-fail proof of the
+  gate half, and the pairing half carries rule 15's other direction — two variants
+  (line-number drift, past-column-96) with the negative and the VARIANT control that state the
+  truncation bug they hold shut. A mutant sweep here would mostly re-prove what every run
+  already proves; no conversion task filed, and this is the measurement that decision rests on.
+- Duty cycle: `gates.yml` names and runs it bare (lines 268-270), required tier.
+- The CI register names it nowhere and owes no row: `ci_minutes --controls` enforces coverage
+  at the script level and the narrative rows are deliberately selective; a tier runs it, so
+  the exclusion table is the only place a row could be owed and it is not owed there.
+- Every docstat internal the suite names exists at HEAD (`_History`, `_check_renumbered_citations`,
+  `TRIAGE_PATH`, `_load_triage`, `_triage_index`, `_row_line`, `_triage_for`,
+  `_check_triage_register` — grep, unpiped).
+
+REPAIRED here, docstring only, no behavior:
+
+- **`_assert_redirected` did not exist.** The `Tree` docstring credited a function by that name
+  with refusing to run the controls until the redirect was proven; the mechanism is real and
+  inline — the REDIRECT control in `register_controls` — but the name occurs exactly once in
+  the repository, in the sentence naming it (grep over `eval/` and `.agents/`). Finding #38's
+  class: a document naming something that does not exist is confidently wrong. It survived
+  because `docstat --sweep` reads markdown and not `.py` docstrings, which is the boundary the
+  defect lives exactly one line inside.
+- **"36 rows nobody has read" was a digit from writing time with no producer.** The live
+  register holds 43 entries and 37 undecidable rows; nothing gates a triage-row count, which is
+  precisely why the figure could go stale unobserved. Reworded to the property ("a register of
+  rows nobody has read"), the mechanism unchanged. Both edits are inside the module docstring,
+  and the suite re-ran green after them (exit 0).
+
+Cost of the pass: 4 docstring lines moved; no gate, register or count touched. Triage register
+unmoved: 43 entries before and after.
+
+Next pointer: **`.agents/skills/work/SKILL.md`** — 0 mentions across all prior passes by count,
+never a subject. It is the procedure every dispatched agent runs — five of them this session —
+and the dispatch skill's step-5 rule ("the defect is here or in the ticket") has been exercised
+repeatedly without the work skill itself ever being read by a pass.
+
+## Pass 46 — 2026-09-01 — .agents/skills/work/SKILL.md (385 lines, read whole) — 1 DELETED TREE NAMED IN A NEVER-TOUCH LIST; the procedure five dispatches ran this session finally read
+
+Subject of pass 45's pointer: the skill every dispatched agent runs, read whole against the
+five dispatches this session exercised it with, and checked at HEAD before anything was judged.
+
+REPAIRED here, one table cell:
+
+- **§4's never-touch row named `template*/` — a tree deleted 2026-08-23.** The retirement is
+  `DECISIONS.md`'s own entry (#122), the artefacts a later merge re-added were removed again in
+  `5df8c89`, and the live project `AGENTS.md` states the deletion in its starters row. The work
+  skill's row kept naming it. A never-touch list's whole job is naming what exists, so this is
+  AGENTS.md's "confidently wrong" class, and it survived because no gate reads for it — the
+  sweep checks references and frontmatter, not path mentions inside a table cell. Repaired by
+  dropping the path; the `eval/starters/*/` row stands, and its four named instruments were
+  confirmed present at HEAD (`verify_blind.py`, `starter_parity.py`, `starter_gate_control.py`,
+  and the regime note in `eval/RUNS.md`). Every other live `template*/` mention in the
+  repository is in DECISIONS.md or `research/`, where the retirement itself is the subject —
+  those stay.
+
+MEASURED SOUND, recorded so the next pass does not redo it:
+
+- **`.coderabbit.yaml` — checked before concluded.** §6 cites that filename; the file exists
+  under exactly that name (23k, at the root). A wrong-address suspicion that did not survive
+  contact with the tree, recorded because the pass that skips the check is the one that "fixes"
+  a correct filename.
+- **The status lifecycle (§1) matches the queue as observed, not as described.** 227 sits
+  `in_review` carrying its PR URL in frontmatter; 231 sits `in_testing` with a one-line
+  `established_by` and its findings in an appended note section — §6 and §7's contract, run
+  end to end by this session's agents.
+- **The pr_review_state interface in §6 is the tool's.** Flags (`--pr --branch --expect-head
+  --wait`), verdicts, and exit codes including UNRESOLVED at 13 — the task-231 agent's 40-poll
+  expiry ran exactly this path.
+- **The squash-only claim is the register's.** PR title/body become the merge commit's
+  subject/body, stated identically in `.github/workflows/README.md`'s Merging section.
+- **§2's finding-allocation prohibition and its evidence (fourteen collisions in one day, one
+  task renumbered twice) are the reason the rule exists** — evidence a rule was bought with,
+  kept by the standing test.
+
+Cost of the pass: one path in one cell; no behavior, no gate, no count moved. The skill is in
+the sweep corpus, so the gates below cover the edit.
+
+Next pointer: **`.agents/skills/add-game/SKILL.md`** — 0 mentions across all prior passes by
+count, never a subject. It governs writing a task prompt and a play-bot criterion, the piece of
+the instrument that decides what a trial asks, and its authoritative file is
+`eval/suites/wholegame_prompts.py`'s docstring (10 mentions — the docstring has been read; the
+procedure that edits it has not).
+
+## Pass 47 — 2026-09-01 — .agents/skills/add-game/SKILL.md (163 lines, read whole) — 1 PATHLESS ADDRESS AND 1 UNCITED FIGURE IN THE SKILL THAT EDITS THE INSTRUMENT'S INPUT
+
+Subject of pass 46's pointer, read whole and checked against HEAD line by line before
+anything was judged. This is the skill governing task prompts and bot criteria — the piece of
+the instrument a trial's subject actually reads.
+
+MEASURED SOUND — every address it names verified present at HEAD (11 paths, one `find`), the
+prompt_guard flags it teaches are the tool's (`--identity`, `--snapshot DIR`, `--diff DIR` in
+its argparse), the `eval/suites/rendered` snapshot-and-diff wiring it describes is what
+`gates.yml` lines 155-164 actually run (bare guard, then `--diff eval/suites/rendered`, with
+the regenerate-deliberately comment beside it), and both finding citations are in range.
+
+REPAIRED here, two one-liners:
+
+- **"Register in `evaluate.py`" named no path.** The file is `eval/judge/evaluate.py` — the
+  skill's only pathless reference, in a list where every other entry is spelled from the root.
+  Rule 12's shape: the address is an input, and a dispatched agent resolving a bare stem from
+  its cwd is the failure the citation discipline exists to prevent. `RUBRIC.md` in the same
+  sentence got the same repair.
+- **"within-cell spread has been measured at 1.6×" cited nothing.** The figure is finding
+  #23's ("a single trial cannot calibrate a process whose within-cell spread is 1.6x",
+  `eval/findings/certifies-nothing.md`), found by reading the archive — no producer exists for
+  it and none should: it is a one-time measurement of one corpus, which is exactly the class
+  that cites its finding rather than re-derives. Now cited.
+
+Also examined and left alone, recorded so it is not re-derived: the "5 of 11" tier-2 figure
+names its producer (`tier2_census.py`) and instructs the reader to run it rather than quote
+the number, which is the convention working as designed; "differ by 6 points" is a property of
+`--identity`'s output format that the same section forbids quoting from memory; and the two
+`--runs-root <main checkout>/eval/runs` spellings are the worktree-era convention the judge
+docs already carry.
+
+Cost of the pass: one path and one citation; no behavior. The skill is in the sweep corpus.
+
+Next pointer: **`.agents/skills/update-readme/SKILL.md`** — 1 mention across all prior passes
+and it is a DECISIONS.md pin note, never a subject (no heading names it; counts and headings
+both checked). It governs edits to `README.md`, the front door — and four verified pull
+requests are waiting to land results into it, so the procedure that gates those edits is due
+its read before they arrive.
+
+## Pass 48 — 2026-09-01 — .agents/skills/update-readme/SKILL.md (174 lines, read whole) — NOTHING FOUND; every verifiable claim checked and none failed
+
+Subject of pass 47's pointer, read whole and verified claim by claim — deliberately, because
+this is the procedure that will gate the README edits when the four waiting pull requests land.
+A found-nothing pass recorded as the result it is: several passes find almost nothing, and the
+record of what was checked is what stops the next pass redoing it.
+
+VERIFIED AT HEAD, each against the artifact rather than against the sentence:
+
+- All 7 producer paths in §3 exist (`census.py`, `instruction_census.py`, `judge_ledger.py`,
+  `tier1_census.py`, `tier2_census.py`, `field_ranks.py`, `linkcheck.py` — existence checks).
+- `python3 eval/tools/tasks.py list` (§7) exists at line 1687 and runs at exit 0. Recorded
+  because the pass's own first grep, truncated by `head`, made it look absent — the check that
+  almost manufactured a phantom, one section before the skill says `--sweep` does not check
+  paths and a phantom once passed it.
+- §9's claim that `renumber_triage.json` pins exact substrings of README is true: 43 rows,
+  including `README.md` / cites 103 / anchor `keeps the other (#100, #103)` — read from the
+  register, not remembered.
+- §5's statement that `docstat --sweep` does not check file paths agrees with AGENTS.md's own
+  audit of the sweep's coverage; `linkcheck.py --selftest` before the live run is rule 12's
+  corollary stated as a command.
+- §2's `$421` example carries the #159 discipline in its own wording (a list-price valuation,
+  "rather than a price"), and the reference-style `[#128]` + bottom-block link shape it
+  mandates is what linkcheck's anchor derivation makes safe.
+
+Nothing repaired, nothing filed. The skill is accurate at HEAD on every point this pass could
+check mechanically.
+
+Next pointer: **`.agents/skills/run-matrix/SKILL.md`** (108 lines) — 2 mentions across all
+prior passes, neither a subject (one names its authoritative file, one a verify_blind exit
+note). Its authoritative file `eval/PROTOCOL.md` was a subject on 2026-08-26 and both have
+moved since; no pass has ever asked whether the skill and the doc it defers to still agree,
+which is the #38 failure mode in its native habitat.
+
+## Pass 49 — 2026-09-01 — .agents/skills/run-matrix/SKILL.md (108 lines, read whole) — NOTHING FOUND; the #38 check against its authoritative file comes out clean
+
+Subject of pass 48's pointer, read whole. The question this pass existed for: the skill and
+`eval/PROTOCOL.md` — subject of the 2026-08-26 pass — have both moved since, and no pass had
+asked whether they still agree. They do, on every point this pass could verify:
+
+- **The standing configuration agrees.** Skill §2 and PROTOCOL.md line 107 state the same
+  thing in the same shape: `--max-turns 1000`, do not pass `--max-budget-usd`, with the #159
+  reasoning (a stated cap terminates and instructs; neither protects anything) in both.
+- **The measured rate is the record's.** Skill says 72.83 over 369 turns = 0.197/turn,
+  n=1, read off `g3_arena__rust__t0` in `wg-arena3d-2026-08-15T12-46-30`; PROTOCOL.md line 139
+  carries 0.1974 for the same trial; the stored record reads `agent.cost_usd = 72.8348` and
+  `agent.num_turns = 369`. Both documents quote the record faithfully, name the producer
+  (`runstat.py --run-dir ...`) and state n=1.
+- **Every file the skill names exists** at its implied address from `eval/` (`wholegame.py`,
+  `tools/runstat.py`, `judge/verify_blind.py`, `judge/bot_mutants.py`,
+  `judge/audio_selftest.py`, `tools/precampaign_smoke.py`).
+- **§3's retry-scoping warning is wholegame.py's own documented behavior**: the rmtree
+  hazard is in the source's comments (line 375), and `--only` exists and *refuses* an id it
+  cannot see (lines 718-729) — the guard the warning leans on.
+
+Also examined and sound: §1's blind-check recipe (copies outside the repo, EXIT-trap cleanup,
+unpiped exit code) matches `eval/judge/AGENTS.md`'s blinding rule it points at; §5's wedge
+signature (frozen CPU across two samples AND zero descendants) is the AGENTS.md rule-2/#37
+diagnostic order; §7's `agent.cost_usd` field name confirmed in the same record.
+
+Nothing repaired, nothing filed. Two consecutive found-nothing passes on skills that were
+dispatched agents' actual procedures all session — recorded as evidence the
+write-the-correction-into-the-file discipline is holding, not as grounds to stop checking.
+
+Next pointer: **`eval/judge/JUDGING.md`** — 6 mentions across all passes, never a subject by
+heading (checked). It is the subjective layer's authority and the `evaluate-run` skill's
+authoritative file; `RUBRIC.md` and `PROTOCOL.md` have both been subjects, the doc between
+them has not, and the last four passes each verified a procedure against ITS authority — this
+is the one authority no pass has opened.
+
+## Pass 50 — 2026-09-01 — `eval/judge/JUDGING.md` (1,462 lines, read whole) — 4 REPAIRS: a closed priority list still asking for work, a scene claim its own stored record contradicts (in two docs), and a gate the evaluate-run skill omits
+
+Pass 49's pointer: the one authority no pass had opened — `RUBRIC.md` and `PROTOCOL.md` had
+both been read, the doc between them had not.
+
+**Repaired:**
+
+1. **The closing priority list ("What would improve the layer most, in order") presented
+   items 1-4 as outstanding while the document's own body had closed them.** Item 1 asked
+   for the adjudication that §"That ordering is withdrawn" records as done (all eleven
+   firings adjudicated, none a property of the games, `FINDINGS.md` §26). Item 2 asked for
+   the judge the 9-aspect table above it says exists. Item 3's comparative rewrite is
+   literally what "each judge scores the whole field" is, and RUBRIC.md records the rubric
+   replacement. Item 4 is half-done (`fun` built and its pre-registration answered; a
+   difficulty-and-tuning aspect never built). Each item now carries its outcome, in the form
+   item 5 already used — its DONE marker proved the list was being read as live, which is
+   what made the others a defect rather than history. The design-time sections above it (the
+   layer matrix, "the three worth building first") were left as history: their own framing
+   dates them, and the repaired list now signposts their outcomes.
+2. **"No scene has been built" was false against the stored record.** One scene trial
+   exists: `wg-scene-s1ts-2026-08-25/trials/s1_parallax__ts__t0.json` reads `task_class:
+   "scene"`, `terminal_reason: harness_kill_external` at wall 3,599 s, no frames, and a
+   record_note stating it is NOT a completed trial and must never enter a submission
+   population. Both documents carrying the clause were last committed AFTER the run
+   (SCENES.md `0d270fb` 2026-08-27, JUDGING.md `fe96eee` 2026-08-28) — a missed update, not
+   old age — and the 2026-08-28 pass that read the scene layer whole missed it too. Repaired
+   in JUDGING.md and in `eval/SCENES.md` ("because no scene has been built" → no scene
+   submission exists, with the trial named). The load-bearing claim — no scene field packed,
+   no round run — was checked against the stored rounds and holds.
+3. **The `evaluate-run` skill's ordered gate list omitted reproducibility** — `JUDGING.md`'s
+   gate 0, "run this before believing any of the others", and the one whose verdicts have
+   flipped on byte-identical input. The skill listed 4 gates under "none may be skipped";
+   blinding was covered by its §0, gate 0 was covered nowhere. Inserted as item 0, matching
+   the doc's numbering. Same #38 direction as pass 49, one file over: skill vs its own
+   authority.
+4. `../IMPROVEMENTS.md` → `eval/IMPROVEMENTS.md` (the falsifier confirmed at
+   `eval/IMPROVEMENTS.md:282`; every other path in the file is repo-relative, and a relative
+   path defeats grep).
+
+**Verified and sound** (the pass's main work — the doc is the subjective layer's authority
+and nearly everything in it is checkable):
+
+- **Producers run, not quoted:** `frame_parity.py --runs-root eval/runs` → 67 submissions
+  with frames, 0 non-uniform — reproduces the doc's "0 of 67" exactly. `paired_verdicts.py
+  --runs-root eval/runs` → 9 groups, 5 at 0.00% on denominators 30-148, max 2.86% (4 of 140)
+  — reproduces the discrimination paragraph digit for digit.
+- **`len(ASPECTS) = 9`** imported and counted, not grepped; 6 game + 3 scene as tabled.
+- **Every named symbol exists where the doc says:** `control_for="fun"`,
+  `FRAMES_BLIND_SPOT`, `applicability` (called at pack, at run_field's refusal, and in
+  field_sweep), build_pack's MAPPING refusal sites, `separation`, `reproducibility`,
+  `order_invariance`, `independence`, `ceiling`, `warn_rounds_without_provenance`
+  (field_sweep.py:215), `neutralise` (anonymise.py:294), `assert_poolable` /
+  `assert_one_run` / the `NOT POOLED` prints / `cross_stack_bar` (field_ranks.py),
+  `assert_out_run` (field_sweep.py:270), `Sampler` (sequential.py:146), `MAX_RUNS = 24`,
+  `n_for_statistical_tie` (reported key, sequential.py:222); flags `--max-rounds`,
+  `--max-wall-min`, `--sequential`, `--max-runs`, `--allow-truncated`. `pack_parity` is
+  absent, as the doc says (deleted, task 202).
+- **All 3 withdrawal register entries** the doc names are in `eval/withdrawn.json`.
+- **RUBRIC agreement:** "Tier 1 is a GATE" (RUBRIC.md:67) against this doc's "one scored
+  tier"; the old rubric's replacement is RUBRIC's own section.
+- **Internal arithmetic spot-checked:** the $105-$635 and $211-$388 / $738-$1,357 /
+  $1,264-$2,327 projections, $58-$653 at 96 rounds, the SD/SE tables (0.418/√5 = 0.187 and
+  friends), the truncation table's SE column, 1.74× → 1.5-1.8× opens and ~1.25× cost, the
+  unadjudicated pattern's 1.857 vs 0.286 (6.5×), and the zero-SE discount table (23-7=16
+  etc.).
+- **29 file/directory existence checks.** Two run names the doc cites as date prefixes
+  resolve to `wg-matrix-2026-08-13T14-02-50` and `wg-g4c-2026-08-21T02-26-46` — the exact
+  names missed, the prefixes unique; recorded as a rule-12 near-miss against my own check,
+  not the doc.
+
+**Judged sound, deliberately untouched:** `--max-cost` still exists as a field_sweep flag
+while the doc says the ceiling "no longer exists" — the doc means the authorisation
+(DECISIONS.md: no run is bounded by a money figure), not the flag. Two rounding edges left
+alone: the per-aspect costs sum to 100.85 against a stated 100.84 total, and SE at n=6
+reads 0.2499 from the rounded 0.612 where the doc says "equal, not below" — both
+unroundable from the table, neither actionable.
+
+Gates after the edits, unpiped: sweep exit 0 (298 docs), renumbered exit 0 (0 stale, 0
+untriaged of 37), tasks check exit 0 (230 well-formed).
+
+Next pointer: **`DECISIONS.md`** (4,058 lines) — 0 headings across all 50 passes (checked),
+25 mentions, every one a pointer target, never a subject. It is the most-cited authority in
+this log and the only top-level document with no dedicated skill or producer gate watching
+it. README.md is the same shape (386 lines, 21 mentions, never a subject) but is the most
+gated doc in the repository — three producer checks, renumber-triage pins, a dedicated
+skill; DECISIONS first.
+
+## Pass 51 — 2026-09-01 — `DECISIONS.md` (4,058 lines, read whole) — 2 REPAIRS: the Open bullet quoting figures its own Grading section retires, and a decision describing in the present tense the behaviour a later decision in the same file removed
+
+Subject chosen by pass 50's pointer (0 heading mentions across all 50 passes — checked —
+and the most-cited authority in this log). Read whole; two repairs, both the same family:
+a live document stating a figure or a behaviour that another part of the same file records
+as retired.
+
+1. **The "Open" bullet on the tier-3 weight said "a bounded contribution of 0.10 against a
+   tightest adjacent gap of 0.0622"** while pointing by name at the Grading section, which
+   states **0.0154** against **0.0667** — 0.10 was the WEIGHT tier 3 briefly held, not the
+   contribution, and the gap was recomputed to 0.0667 on tier 2 alone, with 0.0622 marked
+   there in terms as "not reproduced by that method and its own method is unrecorded". The
+   restatement now carries the section's own figures; the argument around them is untouched.
+2. **The 2026-08-25 instruments decision still said `judge.py`'s `GAME_BRIEF.get(game,
+   "(unknown game)")` "supplies a brief rather than refusing"** — present tense, but the
+   2026-08-30 refusal contract in the same file replaced exactly that: `judge()` refuses an
+   unbriefed game as a recorded verdict and `_brief` indexes directly. The clause is now
+   past tense and points at the contract that closed it. The decision's reasoning stands.
+
+**Verified and sound** (producers run, not quoted — this is the file that demands that of
+every other live document, so it was held to it):
+
+- `tier1_census.py --runs-root eval/runs` → 69 stored submissions, 8 with any tier-1
+  failure, 0 of 11 groups both-vary, 8 single-value groups, `reversed: 0 coarsened: 3
+  identical: 8`, FLOOR-ONLY — reproduces Grading and the Open bullet digit for digit,
+  including 61 of 69 (= 69 − 8) and 61 of the 68 games, 0 of the 1 scene.
+- `tier2_census.py --runs-root eval/runs` → `groups: 11 saturated: 5`, saturated groups
+  summing to 35 (8+3+8+8+8) — the Open bullet's "5 of 11 groups, 35 of the 68 games"
+  exactly. Both reversal-table rows that say "Currently" (tier 1 0 of 11, tier 2 5 of 11)
+  hold today.
+- `census.py` → 91 whole-game records over 12 run directories, 71 spec-change records,
+  1 scene record — the failure-cause-labels section's population line, with the same
+  exclusions named.
+- `judge_ledger.py --tree eval/runs/` → 12 sweep directories, 97 stored rounds — the
+  g1_pong section's "97 rounds over 12 directories".
+- `capability.py --runs eval/runs` → 64 of the 69 at the starter default, 3 varied,
+  2 with no geometry, same per-record identities — the reversal row read 2026-08-27, still
+  true today.
+- `grep -c '^## Iteration '` → 17 (`eval/IMPROVEMENTS.md`) and 2 (root) — the
+  improvement-loop section's counts, still true.
+- The improvement-loop section's run-directory claim, checked at the address the section
+  itself spells: exactly 2 run directories postdate `wg-g4c-2026-08-21T02-26-46`
+  (`wg-harness-probe-primeagent-2026-08-24`, `wg-scene-s1ts-2026-08-25`) and each holds
+  exactly 1 entry under `artifacts/`; the g4c directory holds 8.
+- Internal arithmetic: the 91-record label cross-tab (9+4+1+1+76; 53+18+4+1 = 76;
+  53 = 21+15+10+7; 18 = 5+12+0+1; rust 25 = 7 + 18 externally qualified); the cost-route
+  design floor `4 × (1/4)⁴ = 0.0156`; capability 64+3+2 = 69; the reversal table's 1/N
+  range 0.0435 (arena, 23 scored criteria) to 0.0769 (pong/tetris, 13), consistent with the
+  tier-2 census's per-game scored counts and with JUDGING.md's recomputation table.
+- Dated figures left dated per the file's own CURRENT-or-DATED rule: instruction_census
+  112-155 (2026-08-23), the discrimination reads of 2026-08-23, frame_parity 0 of 67
+  (2026-08-28; pass 50 re-derived it), the $13.16 / $698.21 / $33.63 historical aggregates.
+
+**Judged sound, deliberately untouched:** the money-gate sections' self-description (#159
+exempts it by design); each decision's motivation text describing the state at decision
+time where a later section owns the supersession — the two cross-references this pass added
+are the only places the pair now touches.
+
+Gates after the edits, unpiped: sweep exit 0 (298 docs), renumbered exit 0 (0 stale, 0
+untriaged of 37), tasks check exit 0 (230 well-formed).
+
+Next pointer: **`eval/judge/RUBRIC.md`** (989 lines) — 0 heading mentions across all passes
+(checked), the grading contract three skills and README's grading table cite, actively
+edited by landed tasks, never read whole by a pass. Alternate: `eval/RUNS.md` (3,143 lines,
+also 0 mentions) — the comparability register, mostly never-prune regime boundaries, so a
+pass there is verification-heavy; RUBRIC first.
+
+## Pass 52 — 2026-09-01 — `eval/judge/RUBRIC.md` (989 lines, read whole) — 6 REPAIRS: a retired gap figure still quoted, a top-N claim true of 6 not 7, a self-declared-stale mutant list that had drifted, and a phantom population of 8 scene submissions stated twice across two files
+
+Subject chosen by pass 51's pointer (0 heading mentions across all passes — checked). Read
+whole. One repair family with two shapes: figures gone stale against their producers, and
+populations that never existed stated as counts.
+
+1. **Argument 1 for the zero weight quoted gap 0.0622** — the exact figure
+   `JUDGING.md`'s Weights section marks "not reproduced by this method and the method
+   behind it is not recorded anywhere". Now 0.0667, with the method named (tier 2 alone,
+   per game, recomputed 2026-08-23) and a pointer to the table. This is the propagation
+   tail of the retirement pass 51 fixed at its source in `DECISIONS.md`: the same dead
+   figure was still live in the second file that quotes the argument.
+2. **"The 7 highest of the 66 stored game sets are all `g4_platformer`"** — the 7th is
+   `wg-matrix`'s `g3_arena__rust__t0` (mean ink 0.60285). Found while verifying: the same
+   trial id also exists in `wg-arena3d` with 0 readable frames and mean ink 0.0, which is
+   #70's shape — a submission id is a name within a run — and is why the naive top-7
+   contradicted `ink_window_control`'s per-id printout until the two copies were listed.
+   "6 highest" is what the corpus supports under both references.
+3. **The `ref_arena` mutant list, carried under its own caveat "nothing keeps this copy
+   in step with it", had drifted exactly as the caveat promised**: it named as unpinned 4
+   criteria (`player.moves`, `enemies.spawn`, `fire.spawns_bullets`, `aim.independent`)
+   that have since carried mutants, and the headline said 13 of 22 where the run pins 17
+   of 22. The copy is deleted — the run is the set, now stated with its verified totals
+   (53 mutant rows over 45 criteria; per fixture pong 7, tetris3d 5, arena 17,
+   platformer 16) — and "40 across 4 games" in the platformer section reads 45. The
+   platformer's "16 of the 20" was still current and was not touched.
+4. **"It is the same text for all 8 submissions"** (`fidelity` statement): there never
+   were 8 scene submissions — 0 existed when the sentence was written (`JUDGING.md`;
+   0 scene rounds of the ledger's 97), and 1 exists now. Now "every submission of its
+   scene". **The same phantom count stood in `eval/SCENES.md`** ("the same text in all 8
+   submissions' packs") and got the same repair; that file's other 8 — rendered prompts,
+   2 scenes × 4 stacks — is a real population and stands.
+5. **The NOT ASKED block's population was false twice over.** Its comment said
+   `groups: 10 ... UNIDENTIFIABLE=7` against the tool's 11/8 today, and its point 1 said
+   all 10 groups are games with "0 scene gradings, because no scene has been built" and
+   "24 `g4_platformer`" — three defects in one sentence: 1 scene grading has existed since
+   2026-08-25 (`wg-scene-s1ts`, tiers 1-2 only), the 24 was a mixed population of 8 live
+   gradings plus 16 superseded `wg-g4c-capgate` gradings of the same 8 work trees, and
+   the population the weight question actually needs — scene **tier-3** rounds — is
+   empty for the specific reason that no scene field has ever been packed, so a `w3`
+   sweep has no rounds to vary. Rewritten with all of it, ledger count cited.
+
+**Verified and sound** (producers run, not quoted):
+
+- `weight_sensitivity.py --all` and the `runs/*` form, identical: groups 11, FLIPS=0,
+  STABLE=3, UNIDENTIFIABLE=8; populations g1_pong 25 (8+8+1+8), g2_tetris3d 19, g3_arena
+  16, g4_platformer 8, s1_parallax 1. `--selftest` → 12 controls PASS.
+- `bot_mutants.py --hazards` → 70 criteria with a recorded hazard, 45 carrying a mutant;
+  full run exit 0 — "53 mutants pinned in both directions over 45 criteria, 17 variants,
+  0 pending, 3 session-lock controls, 0 expectation(s) unmet" — per-fixture distinct
+  pinned 7/5/17/16 as repaired above.
+- `tier1_census.py` → 69 submissions, 8 failures (2 BLOCKING arena rust t0/t1 + 6
+  non-blocking), capgate held-out 16 with 14 agree / 2 disagree (ts__t0 0.70,
+  unity__t0 0.85, matching the capgate paragraph digit for digit), scene tier-2 0.833,
+  FLOOR-ONLY headline, pooled DISCRIMINATES. `tier2_census.py` → 69 trials, 5 saturated
+  groups summing 35, selective 10, whole 2, diagnostics without spread.
+- `ink_window_control.py` → 85 gradings / 69 submissions / 16 superseded; game n=68,
+  scene n=1; `--reference-shift` → 67 readable frame sets of 69 (2 with none on disk),
+  10 of 67 move, 0 sets under the 0.001 floor under either reference (lowest 0.00811),
+  86/86 expectations held — the doc's "66 stored game sets" and "804 stored frames"
+  (67 × 12) both reproduce, and the 66/67 pair that survived scrutiny here was
+  initially suspected wrong and is not.
+- `field_ranks.py --rounds runs/wg-aspect-reliability` → 30 rounds, POOLED 4 scored [20],
+  NOT POOLED `fun_frames` control [5] + `idiomatic` barred [5]; score/pool 0.5250/0.4000
+  exact; all 4 readings between-exceeds-within.
+- `judge_ledger.py --tree` → 12 sweep directories, 97 stored rounds, 0 scene lines.
+- The flat-reference claim (ink 0.0 on a solid frame) re-derived via `png.read` +
+  `is_flat`; ASPECTS is 9 and its ids match the aspect table.
+
+**Judged sound, deliberately untouched:** the capgate paragraph (producer-exact); "Why
+the previous rubric was replaced" (load-bearing history); the tier-1-as-gate framing and
+its floor/discriminates language (consistent with the census headline); dated figures
+left dated per the file's convention. **Prune:** one candidate found and it WAS the
+repair — the drifted mutant copy, deleted outright (small and obvious, done directly); a
+task filing of it would have been a second copy of the same defect.
+
+Gates after the edits, unpiped: sweep exit 0 (298 docs), renumbered exit 0 (0 stale, 0
+untriaged of 37), tasks check exit 0 (230 well-formed).
+
+Next pointer: **`eval/RUNS.md`** (3,143 lines) — pass 51's alternate, 0 heading mentions
+across all passes (checked; the pass-33 grep hit is `runstat.py`, not this file), the
+comparability register whose regime boundaries are mostly never-prune, so a pass there
+is verification-heavy: expect to run producers against figures, not to cut. Alternate:
+`eval/SCENES.md` (497 lines, 0 heading mentions; this pass repaired one line of it
+without reading the file whole).
+
+## Pass 53 — 2026-09-01 — `eval/RUNS.md` (3,143 lines, read whole) — 3 REPAIRS: a self-census 11 behind its own command, a headline total two records and one directory behind its producer, and a break-section census whose producer moved under it when the play-bot changed
+
+Subject chosen by pass 52's pointer (0 heading mentions — checked). Read whole, two
+chunks. Verification-heavy as predicted: the regime-boundary sections reproduce, and the
+repairs are all figures whose producer is named in the same sentence.
+
+1. **The opening self-census was typed, not run.** "each of the **130** lines that carries
+   one (`grep -c '\$[0-9]' eval/RUNS.md`)" — the command is in the sentence and the count
+   beside it was 11 behind: the twenty-first through twenty-eighth breaks added `$` lines
+   after 130 was recorded. Now **141** (grep re-run after this pass's own edits: still 141).
+2. **The cumulative census line was two records and one directory behind `census.py`.**
+   Claimed "**$2,466.31** over 162 trials in 24 run directories, **161 of them priced**";
+   the producer reads **163 in 25, 2 unpriced, 161 priced, $2,466.31 unchanged** — the
+   added record is the scene trial (2026-08-25, killed before its agent reported a cost),
+   which moved the counts but not the sum. The old clause "the 162nd is the prime-agent
+   probe" also stated the exclusion rule falsely: the second unpriced record IS
+   `claude`-harness, carrying no readable cost, so "claude-harness records only" was wrong
+   as a description of what the producer excludes. Read date → 2026-09-01.
+3. **Break 23's aim-contract census no longer reproduces, and the reason is the
+   instrument.** Recorded 2026-08-25 as 7,540 ticks sent / 4,636 zero-or-absent aim /
+   33 holding `fire`; `aim_contract_control.py` now prints **7,750 / 4,948 / 32**, and the
+   extraction-proof row moved 90 → 92 opening movement ticks. The population is the drive
+   the play-bot takes, and the only `bot_arena` change between the readings is the
+   end-signal resolution of the twenty-seventh break (2026-08-27). Both readings kept,
+   dated, the movement attributed to the bot; the substance (case driven thousands of
+   times, 22/22 criteria indifferent to both misreadings) is unchanged. The "all 33 from
+   `_multiplier_falls`" attribution stays attached to the 2026-08-25 reading — the tool
+   prints no per-criterion attribution, so it cannot be re-verified against today's drive.
+
+**Verified and sound** (producers run, not quoted):
+
+- **The run table's records column, all 8 rows to the cent**, plus `wg-g4c`'s own section:
+  wg-calib $10.14/1, wg-matrix $355.28/24, wg-audio $241.82/11, wg-cal48 $4.34/1,
+  wg-cal48b $23.75/1, wg-audio48 $486.27/16, archive-arena2d $118.62/8, wg-arena3d
+  $374.05/8, wg-g4c $421.00/8 — each summed read-only from `trials/*.json`. The built-log
+  column was not re-derived; the file documents the two-source policy and the archive
+  penny gap itself. The "$1,614.27 now" of the staleness war story re-sums exactly.
+- **The remainder split**: $91.72 over 47 top-level spec-change trials + $62.09 over 24
+  nested, both exact; they sum to $153.81 against the $153.82 whole — the independent
+  rounding the file's own pennies note describes, not a defect.
+- `wallclock.py` → 157 paired, min 0.9 / median 1.1 / max 6.5 s, 0 negative; 163 records,
+  86+71+0 paired, 6 with no self-report — every figure of the two-clocks section exact.
+  "86 of its 92" is the ADDRESS denominator (`wholegame.py` wrote the 91 game records and
+  the 1 scene record alike), correct as written.
+- `blurb_selftest.py --stored-rounds eval/runs` → 97 / 40 code-seeing / 14 hashed / 26
+  unassessable, exact; the per-aspect hash table (3536→3576, 3928→4000) reproduces.
+- `prompt_capture_census.py --runs-root eval/runs` → 57 / 39 / 18 / 0 and 468 calls /
+  31 refused / 336 no-path / 180 operands / 0 un-carried — both tables digit-exact.
+  (First tried at `eval/tools/` — rule 12 again; the real address is `eval/judge/`.)
+- `disclosure.py --runs-dir eval/runs` → 98 trials, 33 located, 43 quiet, 22 no message;
+  families 25/15 — the DECLINED section's figures are its dated 2026-08-23 census of the
+  then-90 `agent_result.json` and stay dated; the locator comparison in it (26 vs hand 31)
+  was over the same 75 messages and remains true of them.
+- `tier2_census.py` → `rally.counts 25 gradings 0 failures` (break 26, digit-exact) and
+  headline SATURATED (break 27). `audio_regrade_census.py` pass 1 → 59 gradings over 43
+  submissions, moved 0, refused 0, 0 omissions, 0 undeclared, 2 no-manifest (break 22,
+  digit-exact); `--triggered` → 69 records / 43 carried / 0 moved / 26 refused (break 28,
+  digit-exact).
+- `aim_contract_control.py` → all 13 rows ok, 22/22 criteria, `startz`/`resetx`/`nofire`
+  arms hold — break 23's substance; counts repaired as above.
+- Self-censuses: `grep -rl "rally rose on" eval/runs/` → 0; rendered prompts 16 of 24 —
+  both exact. `judge_ledger.py --tree` → 97 rounds / 12 directories / $334.41, already
+  verified this session and re-cited by the per-directory table.
+- Dated figures left dated per the file's convention: the DECLINED hand census, the fifth
+  boundary's "14 of the 68", the harness partition ("claude 90, prime-agent 1" — which is
+  also today's census output), the ~$21.61 overwritten-attempts figure, break 19's "12
+  summaries, 0 short" (pinned by synthetic controls).
+
+**Judged sound, deliberately untouched:** the regime-boundary sections themselves
+(eighth–twenty-eighth — never-prune: each says which runs may be compared with which);
+the moving-row and staleness war stories (load-bearing); the wg-scene record (consistent
+with `tier1_census`'s scene row read in pass 52). **Disk note from the monitor,
+examined and informational:** repo 6.5G of which `eval/runs` is 4.5G — the stored corpus
+is the bulk and is evidence; 377Gi free; nothing to act on.
+
+Gates after the edits, unpiped: sweep exit 0 (298 docs), renumbered exit 0, tasks check
+exit 0.
+
+Next pointer: **`eval/SCENES.md`** (496 lines) — 0 heading mentions across all passes
+(re-checked this pass); pass 52 repaired one line of it without reading the file whole,
+and this pass read it whole without auditing it: the scene contract, the probe decision
+records and the perf-host requirements have never been producer-checked. Alternate:
+`eval/PERF-HOST.md` (305 lines, 0 heading mentions — checked), which SCENES.md names as
+the authority for its performance section.
+
+## Pass 54 — 2026-09-02 — `eval/SCENES.md` (496 lines, read whole) — 2 REPAIRS: a producer-moved identity table, and the performance section calling its own 1 submission nonexistent
+
+Subject chosen by pass 53's pointer. Read whole earlier the same session and
+producer-checked now. The scene instrument's control battery is green end to end — the
+two defects are both prose: one table behind its command, one sentence contradicted by
+the same file 260 lines up.
+
+1. **The identity table's game rows and aggregate were behind `prompt_guard.py
+   --identity`.** Recorded 97.3–98.4% lines / 90.4–95.0% characters for the 4 games and
+   97.3% / 90.9% for all 24; the producer prints **97.4–98.4 / 91.0–95.4** and **97.4 /
+   91.3**. Both scene rows reproduced exactly (96.3/88.5, 96.8/88.2), as did the "about 6
+   percentage points" reading the paragraph under the table makes of the aggregate (6.1).
+   The game prompts moved under the table; the read date is now on the command line.
+2. **The performance section said "no scene submission exists … killed mid-build and
+   never filmed" of the trial its own probe section counts.** The record says the trial
+   was killed from outside at 3599 s, the work tree salvaged (24 files), and the
+   submission graded — 12 frames captured and usable (`frames_usable: true`), 24 PNGs on
+   disk, tier 2 re-graded three times since (`eval/RUNS.md`'s scene record). The stale
+   clause predated the salvage. Rewritten: the submission exists, filmed and graded;
+   what is still unmeasured is the spread, because **one killed trial measures no
+   spread, and it is not a completed trial** — not because no submission exists.
+
+**Verified and sound** (producers run, not quoted):
+
+- `scene_mutants.py --census` → both scenes, every criterion `separated` (s1: 8 rows all
+  ok across reference/mutants/variants; s2: 15 subjects, all 7 criteria separate), and
+  its FIXTURES-NOT-SUBMISSIONS banner intact. `--attribution-selftest` → 9 band tables,
+  4 mutants, 0 expectations unmet, offline as the doc claims.
+- `scene_runner_control.py` → 53 rows, 0 failures: the record names the task class and
+  the tier-2 instrument, the slot holds scene-probe output, the reference passes 8/8,
+  and no tier-1 audio criterion appears in a scene grading. `aspects_selftest.py` →
+  PASS, including the mutant declaring `scene_probe` a game instrument.
+- `prompt_guard.py` → exit 0 (no criterion or threshold vocabulary in a rendered scene
+  prompt); `prompt_guard_control.py` → 27 rows, the preamble-edit rows reading exactly
+  **8** scene prompts and **16** game prompts as the doc states. `blurb_selftest.py` →
+  exit 0. `ink_window_control.py --runs-root eval/runs` → 86/86, and its output shows
+  the scene trial's retired-ceiling hit re-grading to PASS under the floor-only rule.
+- **Every band figure cross-checked against `eval/RUNS.md`'s scene record, exact**: road
+  1.66–2.25 and verge 0.76–0.99 spans per pair (the 2 aliased), the other 5 within
+  0.00–0.48, 6 of 7 bands refused for own-rows (5 of those 6 with 0), clouds and sky
+  reading 0px, and the stored `playbot.json` holding the graded-day verdicts (5 of 6 =
+  0.833, `layers.depth_ordered` FAIL — the since-repaired false negative — exactly as
+  the 4-column re-grade table says). The 8-of-132 estimator figure matches
+  `scene_probe.py`'s docstring term for term.
+- **The capture contract verified in source, not in prose**: `film.ts`'s `sampleTicks`
+  builds `floor(i*TICKS/11)` for i in 0..11 with both ends included; all 4 starter film
+  recipes exist at the named in-starter paths; all 4 starters carry the
+  reproducibility-across-runs test (unity's is `RenderingIsReproducibleAcrossRuns`,
+  `RenderTests.cs:179` — the doc's lowercase phrasing greps past it in PascalCase).
+  `PERF-HOST.md` holds every figure SCENES.md quotes of it: 1.975x, 2.13x, the 25 s gap,
+  and 1.0–3.4 as the union of its two ramp-level ranges.
+- The 3 stored gradings the census found: the probe's graded-day record only; the
+  re-grade history lives in `eval/RUNS.md`'s tables, which is the documented split.
+  Task **232 filed** for the census extension the tool itself asks for.
+
+**Judged sound, deliberately untouched:** the attribution and aliasing derivation
+histories (evidence class — the pre-`174` whole-band readings, the 11-pair series, the
+25px-vs-13.5px variant measurement); the sequencing and ambition sections (no figures);
+the `front.occludes` telemetry-only argument. One abandoned check worth recording: a
+fresh `scene_probe.py` run against the stored **artifact** directory fails with "no
+justfile found" — that directory is the capture layout, not a work tree; the re-grade
+address is the extracted `submission.tar.gz` (`eval/RUNS.md`'s own recipe), and the
+stored grading, not a re-run, is the record of what tier 2 did.
+
+Gates after the edits, unpiped: sweep exit 0 (298 docs), renumbered exit 0 (0 stale, 0
+untriaged), tasks check exit 0 (231 tasks), prompt_guard exit 0 post-edit.
+
+Next pointer: **`eval/PERF-HOST.md`** (305 lines, 0 heading mentions — re-checked this
+pass) — the performance authority every scene ramp number defers to; its figures were
+confirmed present this pass but never producer-checked. Alternate: `DECISIONS.md` (1
+prior heading mention, and it is the file where superseded content must be replaced
+rather than annotated).
+
+## Pass 55 — 2026-09-02 — `eval/PERF-HOST.md` (305 lines, read whole) — 2 REPAIRS, the same defect pass 54 repaired in SCENES.md: the dated record still says no scene exists
+
+Subject chosen by pass 54's pointer. The file is a **dated measurement record**
+(2026-08-24) with an offline selftest as its pinned check, so the pass distinguished
+three figure classes: structural rows re-run and compared, load-sensitive arms left to
+their date, and the staleness class pass 54 had just taught.
+
+1. **"No scene has been built, so there is nothing to repeat"** (*What this did not
+   establish*, first bullet) — the exact overstatement SCENES.md carried until pass 54:
+   a scene submission exists, killed mid-build and salvaged, filmed and graded
+   (`eval/RUNS.md`). What is genuinely missing moved with the salvage: a
+   harness-drivable **real-time** path for its stack (the ts arm films headless on
+   SwiftShader; its real-time path today is a dev server a human opens). Rewritten to
+   say the material to repeat exists and the launch path is the gap.
+2. **"is unmeasured until a scene exists"** (*What that costs a ramp, in levels*) — the
+   same stale state one section up. Rewritten: the one scene submission on disk cannot
+   supply the spread yet, for the real-time-path reason the doc itself holds below.
+
+**Verified and sound** (producers run, not quoted):
+
+- `host_perf_probe.py --selftest` → PASS, exit 0 (the analysis, offline, with its
+  mutants — the only arm that is a check rather than a measurement).
+- **The `--caps` arm re-run today and compared row by row.** Structural rows reproduce
+  exactly: the `EINVAL` trio on `RLIMIT_AS`/`DATA`/`RSS`, `RLIMIT_STACK` at the same
+  `8372224 / 67092480` set-OK, `RLIMIT_CPU` OK, `AS==RSS` aliased; and the
+  `taskpolicy -m` hog table exact — 2048 MB allocated at `-m 512` and at
+  `-m 64 -j 10 -a`, all exit 0, the accepted-but-ignored flag intact. The CPU rate
+  table's ratios reproduce against today's ambient: 0.21 / 0.22 / 0.98 / 1.00 for
+  `-b` / background / utility / `nice` against the recorded 0.20 / 0.20 / 0.98 / 1.00,
+  with the control's own run-to-run range moving 0.7% → 1.2% as ambient does. The
+  machine line is byte-identical (`Apple M3 Max 16 cpu (12P+4E) 64 GB Darwin 25.2.0`).
+- **The ramp-level arithmetic re-derived from the ratios**: every cell of the 3x3
+  table reproduces from `log(r)/log(step)` (1.975 → 3.05/1.68/0.98; 2.130 →
+  3.39/1.86/1.09; 1.025 → 0.11/0.06/0.04), and "1.0 to 3.4" is the union the two
+  bottom rows span.
+- **Every toolchain fact verified at its address**: Bevy 0.19
+  (`crates/game/Cargo.toml:67`), three 0.185.1 (`starters/ts/package.json`), godot
+  4.7.2.stable (`godot --version`), unity 6000.0.45f1
+  (`ProjectSettings/ProjectVersion.txt`), the `--use-angle=swiftshader` pin in
+  `starters/ts/src/view/harness.ts`, and the rust starter's settle-frame allowance —
+  `MAX_SETTLE_FRAMES: usize = 240` at `src/harness.rs:410`.
+- SCENES.md's quotes of this file (1.975x, 2.13x, 25 s, 1.0–3.4) were confirmed present
+  in pass 54; today's repairs leave both files saying the same thing about the spread.
+
+**Deliberately not re-run, and why:** `--gpu`, `--spread` and `--drift` are
+load-sensitive measurements, not checks — the doc dates them (2026-08-24) and records
+the ambient state per arm (`load1` 3.79–17.01, GPU 0% median, non-zero 10 of 30), so a
+re-run produces different numbers with no defect implied, while putting minutes of GPU
+load on the operator's machine (rule 13). The structural arm plus the selftest is the
+re-checkable surface, and both are green. The Linux-VM section is environmental and
+dated; not re-checked.
+
+Gates after the edits, unpiped: sweep exit 0, renumbered exit 0, tasks check exit 0.
+
+Next pointer: **`README.md`** (386 lines, 0 heading mentions across all passes —
+checked) — the front door is gate-covered on its counts, but no exploration pass has
+ever read it whole against what is true now; the update-readme skill fires on edits,
+not as a pass. Alternate: root `IMPROVEMENTS.md` (431 lines, 0 heading mentions), which
+is ARCHIVE per the live/archive decision, so the pass there is about superseded
+hypotheses left open, not stale live figures.
+
+## Pass 56 — 2026-09-02 — README.md (386 lines, read whole) — 3 REPAIRS, all the producer-moved class; every named producer re-run, unpiped
+
+The front door, and the first whole-file read of it by a pass. The file quotes
+producers by name in nearly every quantitative sentence, so the pass was a sweep:
+**every producer README names was run today**, unpiped, and its output compared
+digit for digit against what README states.
+
+**3 repairs, all the class passes 53–55 kept finding — a figure whose named
+producer's output moved after recording:**
+
+1. "**two instruments that are never pooled**" (the pooling warning): the corpus
+   holds THREE kinds of record now — `census.py` has partitioned `SCENE` as its own
+   population, with its own NEVER-pooled line, since the 2026-08-25 scene salvage.
+   README's sentence was behind its own producer. Rewritten to three, dated.
+2. bot_mutants tally (the false-negative bullet): README said **44 criteria pinned,
+   11 variants**; the producer today reports **45 / 17, 0 pending** (3 session-lock
+   controls and 0 unmet unchanged). Digits updated, movement attributed.
+3. instruction_census range: README said **112–155** (read 2026-08-23); the producer
+   today says **136–186** — the always-loaded documents grew, exactly the sentence's
+   own prediction. Refreshed with both readings; **the same figure in `DECISIONS.md`'s
+   k=16 decision row was repaired identically** (that file is live, and its
+   parenthetical carried the old reading).
+
+Also refreshed: the *Is it still true?* re-check date is now 2026-09-02, with
+2026-08-23 kept as the prior read and the same conclusion stated — today's re-run is
+the evidence for it.
+
+**Reproduced exactly, digit for digit, and left alone** (this is the pass's real
+result — the front door's numbers are currently all load-bearing and all true):
+194 findings #19–#212 (`docstat.py --findings`, read on 2026-09-02); tier 1's 69
+submissions, 11 groups, 8-of-11 single-valued, 0-of-11 with both tiers varying, 8
+failing submissions (2 build + 6 lint/unit-test/ink, t2>0 on 6) (`tier1_census.py`);
+tier 2's saturated 5 of 11 — **all 5 game groups; the scene group (n=1) is correctly
+NOT counted saturated** (`tier2_census.py`); cost's 7 groups, 42%–254% of floor,
+floor exceeded in 5 of 7, 165 turns, ts cheapest in 5 of 7 (`cost_census.py`);
+ordering's run-unit p = 0.0156 with the producer's own note that the observed p IS
+the floor, 6-of-7 connected component with floor p 0.25, lead below floor in 5 of 5
+(`cost_census.py --ordering`); paired verdicts 0 differences against large
+evidence differences (99/148, 59/114; the tail-of-output trap — the last run
+section prints an empty table because the scene cell's 1 trial is excluded by
+design) (`paired_verdicts.py`); **the 16 hand adjudications, all false_negative** —
+the count is `len(ADJUDICATED)` and the tool's own NOTE line prints it; running the
+tool bare evaluates 0 submissions BY DESIGN (fail-closed, adjudications are pinned
+to their run) — the 38 in the applied table's false column is firings, a different
+quantity (`audit_criteria.py eval/runs/wg-matrix-2026-08-13T14-02-50`); the g4
+field's turns 205–370 over the 8 trials (`wholegame.py report --run-dir …/wg-g4c…`);
+9 criteria or 14 with audio (the tier-1 census table); 96 rounds/aspect, +0.853,
++0.043, 84 packs, 2,083 tokens (all present in `JUDGING.md` / `eval/findings/` and
+quoted consistently); 0.0622 / 0.308 / 0.462 (present in `DECISIONS.md`, which
+itself carries the "not reproduced by this method" caveat); "no item that would buy
+a new stack measurement" (`tasks.py list`, true today); all 25 paths README names
+exist (`--sweep` does not check paths); the command block's flags exist
+(`capability.py --runs`, `field_sweep.py --orders/--max-wall-min/--aspects`).
+
+Deliberately not done: no repair to the sentence "three failures in the whole
+project are properties of the work" — it already states it is a hand adjudication
+with no producer, which is the honest form.
+
+Gates after the edits, unpiped (main checkout): sweep exit 0, renumbered exit 0,
+tasks check exit 0.
+
+Next pointer: **root `IMPROVEMENTS.md`** (431 lines, 0 heading mentions across all
+passes — checked; pass 55's stated alternate). It is ARCHIVE per the live/archive
+decision, so the pass there is not about stale figures: it is about hypotheses left
+open that were settled elsewhere, and iterations whose measurement could now be
+closed. Alternate: `eval/AGENTS.md` (folder-scoped guidance for the harness —
+0 heading mentions across all passes, checked; the per-folder AGENTS.md files are
+the rules every session loads, and this one has never been read whole against what
+is true now).
+
+## Pass 57 — 2026-09-02 — root IMPROVEMENTS.md (431 lines, read whole) — 3 open iterations audited against the live tree: 2 settled, 1 false in the other direction; 3 tasks filed
+
+ARCHIVE, so the pass question was not stale figures — it was: which of the file's open
+items were settled elsewhere? Four candidates examined.
+
+**Settled, now closed out in dated notes the file keeps rather than rewritten:**
+
+1. **The #66 Unity lint iteration said "Awaiting a decision / PREPARED AND NOT
+   APPLIED." The change is applied.** The prepared guard is in
+   `eval/starters/unity/tools/unity-compile.sh` under `if [ "$STRICT" = "warnings" ]`,
+   with the arm-B negative and the ~2 s cost in its comment. And the predicted
+   consequence is verified, not assumed: `g4_platformer__unity__t1` is in tier 1's
+   failing 8 — `verify.green` and `lint.clean` exit 1 on the re-grade, tier 2 stays
+   1.000 (`tier1_census.py` today). The iteration's own "consequence, stated plainly"
+   paragraph came true exactly.
+2. **Iteration 1 (severed keyboard) is still live, and now recorded as such.**
+   Re-verified against the live criterion set: every tier-1 id and every tier-2 id is
+   probe/simulation-path; #128's four harder criteria replay a played tape through the
+   same probe. Nothing grades device input → intent. Filed `tasks/233` to EXECUTE the
+   pre-registered method (offline, no agent spend, falsifier already written).
+
+**Settled in the other direction — the headline:**
+
+3. **Iteration 2 said "PRE-REGISTERED, not yet built." It is built, and it has never
+   run.** `judge/judge_design.py` + `judge/design_criteria.py` are original equipment
+   (a3d0fd1), implement the iteration's exact spec (frames + telemetry, no source,
+   anchored 0–4, no weight until tuned-vs-detuned separation exceeds run-to-run
+   spread), and are registered spend producers in `tokenvalue.py`'s PRODUCERS — but no
+   stored round, no doc, no decision anywhere names a run (swept JUDGING.md, RUNS.md,
+   DECISIONS.md, eval/runs/). An instrument that is a live question nobody can see.
+   Filed `tasks/234`: run the falsification (a handful of tokval-priced calls) or
+   retire the module with a DECISIONS row naming the ground — supersession by the
+   aspect tier is valid, but must be said.
+
+**Also filed:**
+
+- `tasks/235` — starter_parity compares recipe text, not recipe reproducibility. The
+  gap is named in the #66 iteration's Scope section ("'Unity passed lint' has never
+  been the claim it appeared to be"), the fix is Unity-only, and no arm but Unity has
+  ever had its gate compared against a cold run. Either measure it per stack or
+  record why text comparison suffices.
+
+**Examined and judged sound, no action:** iteration 1's hypothesis/falsifier are
+internally complete and correctly scoped (the #41 mouse-clause preamble diff in
+`eval/findings/one-arm-bias.md` is a different incident, not this one); the task-26
+"two arms not done" section is correctly superseded by the task-52 iteration with
+the #110 correction in place; the deliberately-not-adopted registers in both
+iterations state a reason per row and need nothing.
+
+Process note: `tasks.py add` printed `error: no justfile found` before creating each
+task; all three files are well-formed per `tasks.py check` (gate below, exit 0).
+Looked at once, not chased — noted so the next pass that sees it knows it was seen.
+
+Gates after the edits, unpiped (main checkout): sweep exit 0, renumbered exit 0,
+tasks check exit 0.
+
+Next pointer: **`eval/AGENTS.md`** (folder-scoped guidance for the harness; 0 heading
+mentions across all passes — checked; pass 56's stated alternate). The per-folder
+AGENTS.md files are the rules every session loads, and this one has never been read
+whole against what is true now. Alternate: `eval/G4-PLATFORMER.md` (0 heading
+mentions) — the fourth game's design record, which README cites for its criteria.

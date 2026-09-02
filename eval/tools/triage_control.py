@@ -23,8 +23,8 @@ WHAT IS CONTROLLED, and why each exists rather than being obvious:
               caught a bad key while the register was being written by hand (task 102).
   UNPARSEABLE a register that does not parse must be REPORTED, never read as an empty one.
               An empty register and an unreadable one produce the same silence, and the
-              silence means "36 rows nobody has read" - the vacuous pass this module
-              exists to prevent.
+              silence means a register of rows nobody has read - the vacuous pass this
+              module exists to prevent.
   CLEAN       the real register over the real tree must be green, and must adjudicate the
               number of rows it claims. Without this the reds above could all be coming
               from a check that fails on everything.
@@ -69,8 +69,8 @@ class Tree:
 
     AGENTS.md rule 12's fifth instance is a monkeypatched constant that had already been
     consumed at import, so the check linted the real tree while the control believed it
-    was reading a planted one. `_assert_redirected` refuses to run the controls until an
-    entry that is red ONLY in the temp tree comes back red.
+    was reading a planted one. The REDIRECT control in `register_controls` refuses to let
+    the suite pass until an entry that is red ONLY in the temp tree comes back red.
     """
 
     def __init__(self) -> None:

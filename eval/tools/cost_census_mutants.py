@@ -26,7 +26,8 @@ makes a mutant necessary rather than merely tidy:
 | `min_trials_guard` | the `--min-trials-per-cell >= 2` refusal | the same fail-open, reached by a flag instead of by data |
 | `min_stacks_guard` | the `--min-stacks >= 2` refusal | a "between-stack range" over one stack, which is $0.00 by construction and reads as the stacks agreeing |
 | `pool_terminal` | the `terminal_reason` partition | one mean over `completed`, `api_error` and `max_turns` together (rule 4) |
-| `pool_specchange` | the whole-game / spec-change partition | the retired suite's trials inside a whole-game floor |
+| `pool_specchange` | the whole-game / scene / spec-change partition | the retired suite's and the scene records' trials inside a whole-game floor |
+| `partition_by_field_presence` | the shared classifier, restored to this tool's old local spelling | the exact defect task 227 fixed: a scene record (which carries `game` like every other) counted as a whole-game trial here while census.py counts it as a scene — the two producers' totals for one tree disagreeing by one |
 | `pool_games` | the game half of the group key | two games of one run averaged into a single floor |
 | `pool_harness` | the harness partition | another vendor's list price inside a tokval floor. One foreign record moves the fixture's within-cell floor from **10.5 to 130.5** |
 | `record_shape_guard` | the record being an object at all | a JSON string read through a SUBSTRING test — `"a game"` becomes a whole-game record and raises `AttributeError` naming no file; `"agent"` is filed as the retired suite's and dropped with no skip reported |
@@ -135,8 +136,17 @@ MUTANTS: dict[str, tuple[str, str]] = {
         "        if _terminal(d) != terminal_reason:",
         "        if False:"),
     "pool_specchange": (
-        "        if WHOLEGAME_KEY not in d:\n            continue",
+        '        if pop != "whole-game":\n            continue',
         "        if False:\n            continue"),
+    # THE EXACT DEFECT TASK 227 FIXED, kept as a permanent red: the local
+    # field-presence spelling this tool carried beside a comment promising it matched
+    # census.py's. A scene record carries `game` like every other record, so this test
+    # filed the first stored scene into the whole-game population here while census.py
+    # filed it as a scene — the two producers' totals for one tree disagreeing by one.
+    # Reintroduced, it must redden the selftest rather than wait to drift again.
+    "partition_by_field_presence": (
+        '        pop = population_of(d)',
+        '        pop = "whole-game" if WHOLEGAME_KEY in d else "spec-change"'),
     "pool_games": (
         '        by_group[(run, d["game"])][d["stack"]].append(d)',
         '        by_group[(run, "ALL")][d["stack"]].append(d)'),

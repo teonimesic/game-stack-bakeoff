@@ -6487,3 +6487,25 @@ each *rejected* candidate would cost, so they are meant to be non-zero and gatin
 gate the wrong sign.
 
 ---
+
+## #213 - the partition of the stored tree was restated in two producers, and every restatement drifted — including the one written to stop the drift
+
+**The partition of the stored tree was restated in two producers, and every restatement drifted —
+including the one written to stop the drift.** `cost_census.py` spelled the whole-game test as
+field presence beside a comment saying it was 'the same test as census.py'; when the first scene
+record landed (2026-08-25, `game` AND `task_class: scene` on one record), the two producers'
+totals for one tree split — published `wholegame_records: 92` against census.py's 91 — and stayed
+split for 5 days, because no gate reads two producers against each other; the split was found by
+reading both files whole (cleanup pass 34, 2026-08-30). The one-classifier repair (`population_of`
+in `agent_harness.py`) initially regrew the same shape one level down: its spec-change path
+short-circuited before task-class validation, so a record with an unknown class and no `game`
+field was refused by census.py and counted by cost_census — caught by review, not by any gate
+(2026-08-30). And the first pin set masked that second defect: the new fixture's old pin stayed
+green because the record was refused by a DIFFERENT cause in the same path (naming `agent`, not
+`task_class`) — a pin that asserts 'it fails' is satisfied by a refusal of the wrong thing; assert
+the refusal names its cause. Repair verified end to end: producers agree 91/91 with the scene
+record reported under a named population label; group blocks and every `--ordering` figure
+byte-identical to pre-fix; the original spelling kept red as `partition_by_field_presence`
+(`cost_census_mutants.py`, 42/42, control green). Producer: `python3 eval/tools/census.py` and
+`python3 eval/tools/cost_census.py` over the same `--runs-dir` must print the same whole-game
+record count; disagreement is the finding firing again.

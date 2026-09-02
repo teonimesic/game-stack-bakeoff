@@ -7,8 +7,9 @@ and that shape - a mechanism that runs, reports success and measures nothing - i
 most findings in this repository. So every property the register claims is asserted here
 against an input built to violate it.
 
-    ./withdrawn_control.py                  # the controls
-    ./withdrawn_control.py --mutate any_of  # prove they can go red
+    ./withdrawn_control.py                  # the controls and every mutant - what CI runs
+    ./withdrawn_control.py --clean-only     # the controls alone, unmutated
+    ./withdrawn_control.py --mutate any_of  # one mutant, prove it goes red
     ./withdrawn_control.py --list-mutants
 
 WHAT IS CONTROLLED, and why each one exists rather than being obvious:
@@ -88,6 +89,16 @@ MUTANTS = {
     "no_archive": "nothing is classified as archive, so the log is gated like a live doc",
     "no_anchor": "the anchor proof is skipped",
 }
+
+#: The `docstat` attributes `apply_mutant` may rebind - the before/after set for both the
+#: single-mutant guard and the sweep's leak check. `no_anchor` patches this module's own
+#: `_register_problems` and is invisible here, which is why the sweep checks it separately.
+PATCHED = ("_states", "_claim_blocks", "is_archive", "scan_withdrawn")
+
+#: Historical corpora, read once per PROCESS rather than once per `controls()` call. The
+#: sweep runs the controls 6 times, and the `git show` behind each revision dominates the
+#: step's cost - without this the sweep would pay it 6 times for one answer.
+_CORPUS_CACHE: dict[str, dict[str, str]] = {}
 
 
 # ---------------------------------------------------------------------------
@@ -286,17 +297,18 @@ def controls() -> int:
     # before each withdrawal landed, the retired figure was published in exactly these live
     # documents. Corpora are read once per revision - `git show` per file is the expensive
     # part and three of these rows share a tree.
-    corpora: dict[str, dict[str, str]] = {}
-    now, _ = DS._live_corpus()
+    if "_now_" not in _CORPUS_CACHE:
+        _CORPUS_CACHE["_now_"], _ = DS._live_corpus()
+    now = _CORPUS_CACHE["_now_"]
     for rev, eid, sites in HISTORICAL:
-        if rev not in corpora:
+        if rev not in _CORPUS_CACHE:
             hist, hist_problems = DS._live_corpus(rev)
             if hist_problems or not hist:
                 r.check(False, f"HISTORICAL: could not read the tree at {rev}",
                         "; ".join(hist_problems)[:120])
                 hist = {}
-            corpora[rev] = hist
-        hist = corpora[rev]
+            _CORPUS_CACHE[rev] = hist
+        hist = _CORPUS_CACHE[rev]
         if not hist:
             continue
         published = {h.split(":")[0] for h in run(hist) if f"`{eid}`" in h}
@@ -321,6 +333,56 @@ def _register_problems(entries: list[dict]) -> tuple[list[str], str]:
         if not any(DS._states(e, "\n".join(lines[a:b])) for a, b in DS._claim_blocks(lines)):
             problems.append(f"{e['id']}: matches nothing in its anchor")
     return problems, ""
+
+
+def sweep(verbose: bool = False) -> int:
+    """The clean run and EVERY mutant, in one invocation.
+
+    THIS IS WHAT THE CI STEP RUNS, and it is why the step exists at all - the repair
+    `corpus_control.sweep` records from PR #54, which this file had not received: with
+    the default at `controls()` alone, the gate duplicated the clean half `docstat
+    --withdrawn` already runs, and no mutant ever ran outside an operator's terminal.
+    A suite whose mutants are opt-in is a suite whose mutants are the one thing nobody
+    re-runs - and these five flips are the recorded justification for the register
+    gating at all (docstat.py's wiring note credits them), so their continued ability
+    to fire is exactly what a bare clean run cannot assert.
+    """
+    print(f"withdrawal register controls, {len(ENTRIES)} entries\n")
+    clean_failed = controls()
+    print(f"\nCLEAN  {'FAILED' if clean_failed else 'passed'}, expected passed\n")
+
+    pristine = {n: getattr(DS, n) for n in PATCHED}
+    pristine_anchor_half = _register_problems
+    killed: list[str] = []
+    survived: list[str] = []
+    for name in MUTANTS:
+        for n, v in pristine.items():  # a mutant must not leak into the next
+            setattr(DS, n, v)
+        globals()["_register_problems"] = pristine_anchor_half
+        apply_mutant(name)
+        rebound = (any(getattr(DS, n) is not pristine[n] for n in PATCHED)
+                   or globals()["_register_problems"] is not pristine_anchor_half)
+        if not rebound:
+            survived.append(f"{name}: rebound nothing - it is not testing anything")
+            continue
+        failed = controls()
+        print(f"\nMUTANT {name:<12} "
+              + ("SURVIVED  <- the controls cannot see the mechanism it names"
+                 if not failed else "went red, as it must"))
+        (survived if not failed else killed).append(name)
+    for n, v in pristine.items():
+        setattr(DS, n, v)
+    globals()["_register_problems"] = pristine_anchor_half
+
+    print(f"\n{len(killed)} of {len(MUTANTS)} mutants died; "
+          f"{len(survived)} survived"
+          + ("" if not survived else ":\n  " + "\n  ".join(survived)))
+    if clean_failed or survived:
+        return 1
+    print("A mutant run is EXPECTED to fail its controls; a mutant that survives means "
+          "the controls no longer reach the mechanism they name, and the gate's green "
+          "is once again the ambiguity this file exists to prevent.")
+    return 0
 
 
 def apply_mutant(name: str) -> None:
@@ -354,6 +416,8 @@ def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--mutate", metavar="NAME")
     ap.add_argument("--list-mutants", action="store_true")
+    ap.add_argument("--clean-only", action="store_true",
+                    help="the controls on the unmutated tree, without the mutant sweep")
     a = ap.parse_args()
     if a.list_mutants:
         for k, v in MUTANTS.items():
@@ -369,9 +433,9 @@ def main() -> int:
         return 1
 
     if a.mutate:
-        before = (DS._states, DS._claim_blocks, DS.is_archive, DS.scan_withdrawn)
+        before = tuple(getattr(DS, n) for n in PATCHED)
         apply_mutant(a.mutate)
-        after = (DS._states, DS._claim_blocks, DS.is_archive, DS.scan_withdrawn)
+        after = tuple(getattr(DS, n) for n in PATCHED)
         if before == after and a.mutate != "no_anchor":
             print(f"MUTANT {a.mutate} changed nothing - it is not testing anything")
             return 1
@@ -381,8 +445,11 @@ def main() -> int:
               "cannot see the mechanism they name.")
         return 0 if rc else 1
 
-    print(f"withdrawal register controls, {len(ENTRIES)} entries\n")
-    return controls()
+    if a.clean_only:
+        print(f"withdrawal register controls, {len(ENTRIES)} entries\n")
+        return controls()
+
+    return sweep()
 
 
 ENTRIES: list[dict] = []
