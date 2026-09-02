@@ -191,8 +191,9 @@ held by different parties:**
 **The conversion.** Over **157** paired observations `wall_s - duration_ms/1000` is min
 **0.9 s**, median **1.1 s**, max **6.5 s**, and **negative on none of them**. That difference is
 the timing script's own spawn-and-parse overhead. `python3 eval/tools/wallclock.py` produces
-every figure in this section, and it **fails on any negative delta**. It takes its tree walk and
-its population partition from `census.py` rather than reimplementing them, so its record counts
+every figure in this section, and it **fails on any negative delta**. It takes its tree walk from
+`census.py` and its population partition from the one shared classifier in `eval/agent_harness.py`
+that both census tools import (task 227), rather than reimplementing either, so its record counts
 cannot disagree with `python3 eval/tools/census.py`.
 
 > **A negative delta has 2 possible causes and its magnitude separates them.** `wall_s` is

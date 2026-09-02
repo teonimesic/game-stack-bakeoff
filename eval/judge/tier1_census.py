@@ -93,14 +93,18 @@ import sys
 import tempfile
 from pathlib import Path
 
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+
+#: ONE definition of the agent-authored skip list, imported rather than restated. A
+#: Unity work tree carries `Library/Bee/artifacts`, which matches the report pattern's
+#: directory name and is not a run's artifacts. This module, `tools/census.py`,
+#: `tools/cost_census.py` and `tools/manifest.py` each carried a copy beside a comment
+#: promising the others agreed — a comment where an assertion belongs (task 227). The
+#: selftest pins the import by identity.
+from agent_harness import NOT_A_RUN  # noqa: E402
+
 #: Tier-1 criteria that tier 2 depends on. See the module docstring for the mechanism.
 BLOCKING = ("build.compiles", "probe.responds")
-
-#: Directories whose contents were written by a building agent or a toolchain, not by the
-#: harness. A Unity work tree carries `Library/Bee/artifacts`, which matches the report
-#: pattern's directory name and is not a run's artifacts. Same list as
-#: `tools/census.py::NOT_A_RUN`, for the same reason and against the same tree.
-NOT_A_RUN = frozenset({"work", "artifacts", "targets"})
 
 
 # --------------------------------------------------------------------------- #
@@ -642,6 +646,15 @@ def selftest() -> int:
         # MUTANTS. Each removes one mechanism; the expectation above must go red.
         print("\n[mutants: can these checks fail?]")
         g = globals()
+
+        # THE SKIP LIST IS THE SHARED ONE (task 227), by IDENTITY rather than equality:
+        # a locally redefined twin with equal value would be a second definition, and a
+        # second definition is exactly what drifted between the census producers.
+        import agent_harness
+        expect("NOT_A_RUN is the shared skip list object, not a local twin",
+               g["NOT_A_RUN"] is agent_harness.NOT_A_RUN)
+        expect("no literal skip list is left in this file",
+               'frozenset({' + '"work"' not in Path(__file__).read_text())
 
         # The defect this section repairs: one level deep, and the whole nested run
         # vanishes with no diagnostic.
