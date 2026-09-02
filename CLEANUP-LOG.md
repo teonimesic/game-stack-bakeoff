@@ -4685,3 +4685,73 @@ ever read it whole against what is true now; the update-readme skill fires on ed
 not as a pass. Alternate: root `IMPROVEMENTS.md` (431 lines, 0 heading mentions), which
 is ARCHIVE per the live/archive decision, so the pass there is about superseded
 hypotheses left open, not stale live figures.
+
+## Pass 56 — 2026-09-02 — README.md (386 lines, read whole) — 3 REPAIRS, all the producer-moved class; every named producer re-run, unpiped
+
+The front door, and the first whole-file read of it by a pass. The file quotes
+producers by name in nearly every quantitative sentence, so the pass was a sweep:
+**every producer README names was run today**, unpiped, and its output compared
+digit for digit against what README states.
+
+**3 repairs, all the class passes 53–55 kept finding — a figure whose named
+producer's output moved after recording:**
+
+1. "**two instruments that are never pooled**" (the pooling warning): the corpus
+   holds THREE kinds of record now — `census.py` has partitioned `SCENE` as its own
+   population, with its own NEVER-pooled line, since the 2026-08-25 scene salvage.
+   README's sentence was behind its own producer. Rewritten to three, dated.
+2. bot_mutants tally (the false-negative bullet): README said **44 criteria pinned,
+   11 variants**; the producer today reports **45 / 17, 0 pending** (3 session-lock
+   controls and 0 unmet unchanged). Digits updated, movement attributed.
+3. instruction_census range: README said **112–155** (read 2026-08-23); the producer
+   today says **136–186** — the always-loaded documents grew, exactly the sentence's
+   own prediction. Refreshed with both readings; **the same figure in `DECISIONS.md`'s
+   k=16 decision row was repaired identically** (that file is live, and its
+   parenthetical carried the old reading).
+
+Also refreshed: the *Is it still true?* re-check date is now 2026-09-02, with
+2026-08-23 kept as the prior read and the same conclusion stated — today's re-run is
+the evidence for it.
+
+**Reproduced exactly, digit for digit, and left alone** (this is the pass's real
+result — the front door's numbers are currently all load-bearing and all true):
+194 findings #19–#212 (`docstat.py --findings`, read on 2026-09-02); tier 1's 69
+submissions, 11 groups, 8-of-11 single-valued, 0-of-11 with both tiers varying, 8
+failing submissions (2 build + 6 lint/unit-test/ink, t2>0 on 6) (`tier1_census.py`);
+tier 2's saturated 5 of 11 — **all 5 game groups; the scene group (n=1) is correctly
+NOT counted saturated** (`tier2_census.py`); cost's 7 groups, 42%–254% of floor,
+floor exceeded in 5 of 7, 165 turns, ts cheapest in 5 of 7 (`cost_census.py`);
+ordering's run-unit p = 0.0156 with the producer's own note that the observed p IS
+the floor, 6-of-7 connected component with floor p 0.25, lead below floor in 5 of 5
+(`cost_census.py --ordering`); paired verdicts 0 differences against large
+evidence differences (99/148, 59/114; the tail-of-output trap — the last run
+section prints an empty table because the scene cell's 1 trial is excluded by
+design) (`paired_verdicts.py`); **the 16 hand adjudications, all false_negative** —
+the count is `len(ADJUDICATED)` and the tool's own NOTE line prints it; running the
+tool bare evaluates 0 submissions BY DESIGN (fail-closed, adjudications are pinned
+to their run) — the 38 in the applied table's false column is firings, a different
+quantity (`audit_criteria.py eval/runs/wg-matrix-2026-08-13T14-02-50`); the g4
+field's turns 205–370 over the 8 trials (`wholegame.py report --run-dir …/wg-g4c…`);
+9 criteria or 14 with audio (the tier-1 census table); 96 rounds/aspect, +0.853,
++0.043, 84 packs, 2,083 tokens (all present in `JUDGING.md` / `eval/findings/` and
+quoted consistently); 0.0622 / 0.308 / 0.462 (present in `DECISIONS.md`, which
+itself carries the "not reproduced by this method" caveat); "no item that would buy
+a new stack measurement" (`tasks.py list`, true today); all 25 paths README names
+exist (`--sweep` does not check paths); the command block's flags exist
+(`capability.py --runs`, `field_sweep.py --orders/--max-wall-min/--aspects`).
+
+Deliberately not done: no repair to the sentence "three failures in the whole
+project are properties of the work" — it already states it is a hand adjudication
+with no producer, which is the honest form.
+
+Gates after the edits, unpiped (main checkout): sweep exit 0, renumbered exit 0,
+tasks check exit 0.
+
+Next pointer: **root `IMPROVEMENTS.md`** (431 lines, 0 heading mentions across all
+passes — checked; pass 55's stated alternate). It is ARCHIVE per the live/archive
+decision, so the pass there is not about stale figures: it is about hypotheses left
+open that were settled elsewhere, and iterations whose measurement could now be
+closed. Alternate: `eval/AGENTS.md` (folder-scoped guidance for the harness —
+0 heading mentions across all passes, checked; the per-folder AGENTS.md files are
+the rules every session loads, and this one has never been read whole against what
+is true now).
