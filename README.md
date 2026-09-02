@@ -100,13 +100,16 @@ occur ([#68], [`eval/judge/JUDGING.md`](eval/judge/JUDGING.md)).
 > one machine repair each void a comparison, and the boundaries are numbered there. Pooling across a boundary produces a
 > number that means nothing.
 >
-> The corpus also holds **two instruments that are never pooled**: whole-game trial records, and
-> the records of a retired suite that ran different tasks and was graded differently. `census.py`
+> The corpus also holds **three kinds of record that are never pooled**: whole-game trial records,
+> the records of a retired suite that ran different tasks and was graded differently, and — since
+> 2026-08-25 — scene records, graded by a different tier-2 instrument
+> ([`eval/SCENES.md`](eval/SCENES.md)). `census.py`
 > partitions them and sums only where a sum means something ([`eval/AGENTS.md`](eval/AGENTS.md)).
 
 ## Is it still true? What would settle it? What is being done?
 
-**Re-checked against the stored corpus on 2026-08-23, by re-running every producer named above.**
+**Re-checked against the stored corpus on 2026-09-02, by re-running every producer named above
+(previously 2026-08-23; same conclusion — nothing separates the stacks).**
 Nothing that has landed since separates the stacks. One thing did change, and it is a subtraction:
 the LLM judge can no longer be counted as an independent route to the null, because none of its
 stored rounds was blind. The headline rests on four routes, not five.
@@ -147,8 +150,9 @@ above — agent time and rate-limit capacity, not money ([#159]).
   separate them — and a retired earlier suite already failed to separate four stacks that all
   scored 6/6 on it.
 - **Do not assume the criteria have no false negatives left.** They are pinned in both directions
-  — `python3 eval/judge/bot_mutants.py` reports **44 criteria pinned, 11 variants, 3 session-lock
-  controls, 0 expectations unmet** — and that has never yet been enough. Every false negative
+  — `python3 eval/judge/bot_mutants.py` reports **45 criteria pinned, 17 variants, 3 session-lock
+  controls, 0 expectations unmet** (re-read 2026-09-02; 44 and 11 at this row's previous read) —
+  and that has never yet been enough. Every false negative
   found here was found by adjudicating a failure against source, never by the suite.
 
 ## Almost every failure recorded here was the grader's, not the submission's
@@ -171,8 +175,9 @@ Does an agent follow an always-loaded rule less well as more rules are active at
 over deterministically-checked instructions at k = 1, 2, 4, 8, 16, plus a length control:
 **no — every arm scored 1.000, and the largest decline consistent with the data is 3.3 percentage
 points.** What it does *not* establish is the interesting claim. `python3
-eval/tools/instruction_census.py` puts the always-loaded set at **112–155 instructions** depending
-on definition (read 2026-08-23), and the experiment reached 16. **Quote the command, not the
+eval/tools/instruction_census.py` puts the always-loaded set at **136–186 instructions** depending
+on definition (read 2026-09-02; 112–155 on 2026-08-23 — the always-loaded documents grew), and the
+experiment reached 16. **Quote the command, not the
 digits** — that range has moved repeatedly as the always-loaded documents grow, and the point
 survives any particular value ([#144]). Design, result and controls:
 [`eval/instrfollow/`](eval/instrfollow/).

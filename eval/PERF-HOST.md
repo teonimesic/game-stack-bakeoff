@@ -216,7 +216,8 @@ A ramp reports the highest level sustained, so a frame time inflated by `r` cost
 1.0 to 3.4**, the wide range being the step size a ramp chooses. A ramp can only separate stacks
 by more than the host contributes, so at those levels the host is the larger term for any stack
 gap smaller than it — and how large a stack gap is,
-like the spread a real submission adds on top, is unmeasured until a scene exists. That is why
+like the spread a real submission adds on top, is unmeasured; the one scene submission on
+disk cannot supply it yet, for the real-time-path reason under *Frame timing* below. That is why
 spacing and exclusivity are requirements: they are what make the host term small enough that the
 question becomes about the submissions.
 
@@ -290,13 +291,17 @@ Two of these need work before a ramp can run at all:
 
 ## What this did not establish
 
-- **The run-to-run spread of a real submission, which is what the ticket asked for.** No scene
-  has been built, so there is nothing to repeat. Everything above is one fixed synthetic GPU
-  workload, and it is a **floor**: a submission adds process start, shader compilation, asset
-  loading and engine variance on top. The floor is the useful half of the answer — it says the
-  *machine* is not what stops a ramp, provided trials are spaced and the host is exclusive — but
-  the submission-level figure has to be measured on the first scene that exists, before any
-  stack comparison is reported.
+- **The run-to-run spread of a real submission, which is what the ticket asked for.** One scene
+  submission now exists — `s1_parallax__ts__t0`, killed from outside mid-build and salvaged,
+  filmed and graded; `eval/RUNS.md` holds the record — so the material to repeat exists. What
+  does not is a harness-drivable real-time path for its stack: the ts arm films headless on
+  SwiftShader, and its real-time path today is a dev server a human opens, so a repeat needs
+  the second launch path first (a perf-pass change, not a starter change). Everything above is
+  one fixed synthetic GPU workload, and it is a **floor**: a submission adds process start,
+  shader compilation, asset loading and engine variance on top. The floor is the useful half of
+  the answer — it says the *machine* is not what stops a ramp, provided trials are spaced and
+  the host is exclusive — but the submission-level figure has to be measured before any stack
+  comparison is reported.
 - **The cause of the drift.** Thermal throttling, the shared CPU/GPU power budget and co-tenancy
   are not separated by these arms. Only the size of the effect and its recovery time are.
 - **Whether a render workload drifts like a compute workload.** The fixed workload is a pure ALU

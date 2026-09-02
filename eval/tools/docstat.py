@@ -5525,6 +5525,8 @@ def cmd_selftest() -> int:
     print()
     failed += _bare_flag_pins(verbose=True)
     print()
+    failed += _pack_label_pins(verbose=True)
+    print()
     failed += _citation_census_pins(verbose=True)
     print()
     failed += _count_trigger_pins(verbose=True)
@@ -5557,6 +5559,113 @@ def cmd_selftest() -> int:
 _DELIBERATELY_FAKE = r"does not exist|phantom|plant\w*|do not name them"
 
 
+def _pack_label_hits(src: str) -> list[str]:
+    """Lines of one module that key by pack label while reading multiple rounds (#70).
+
+    Extracted verbatim from `cmd_sweep` so the pin drives the same code the sweep
+    runs, on text in memory, rather than re-implementing the trigger beside it
+    (task 113: a control that recomputes its expectation from its own copy agrees
+    with every mutant of the copy and none of the subject). The `runs/` skip and
+    the glob stay with the caller; everything that decides a line lives here.
+    """
+    if not re.search(r"(rep\*|seed\*|__seed|repeats7|rounds\b)", src):
+        return []
+    hits = []
+    for ln in src.split("\n"):
+        if not re.search(r"""\[\s*["']label["']\s*\]""", ln):
+            continue
+        stripped = ln.strip()
+        if (stripped.startswith("#") or "mapping" in ln or "manifest" in ln
+                or "re.search" in ln or "re.compile" in ln):
+            continue
+        hits.append(ln)
+    return hits
+
+
+def _pack_label_pins(verbose: bool = False) -> list[str]:
+    """Pin the pack-label check in both directions, in memory.
+
+    FINDING #70 SAYS THE GUARD IS "Pinned both ways", and until 2026-09-01 nothing in
+    this module made that true: the check ran in `--sweep` with no pin anywhere in the
+    tree (`git log -S pack_label_pins` is empty), so its green was the ambiguity this
+    file exists to prevent -- 0 rows over a clean corpus, which is also what a check
+    that cannot fire reports. This pass supplies the pin rather than editing the
+    archive to match reality.
+
+    The live corpus that decided the exemptions, measured 2026-09-01: 163 modules
+    scanned, 26 carry a multi-round marker, 3 trigger lines, all 3 in
+    `eval/judge/field.py` and all 3 exempted for a use the finding itself blesses --
+    reading a manifest, resolving through the mapping. The substring exemption is
+    therefore load-bearing in exactly its loose form; the tightening that suggests
+    itself (the word must PRECEDE the trigger) breaks one of the three.
+
+    THE LAST CASE IS THE CHANNEL THE LOOSE FORM LEAVES OPEN (rule 7): a bug line whose
+    trailing comment says "mapping" is excused. It has no live instance and is pinned
+    green on purpose, so any tightening of the exemption has to move this row
+    consciously rather than silently.
+    """
+    multi = "rows = [load(r) for r in rounds]\n"
+    # The check reads *.py, so this module's own fixture literals must not carry the
+    # defect shape on one physical line: measured on the first run, the sweep fired 5
+    # rows and all 5 were the cases below whose runtime value contains ["label"].
+    # Splitting the token across an implicit concatenation keeps every fixture
+    # byte-identical at runtime (the pins test the real trigger) while no physical
+    # line of the pins file matches it. The cases whose point IS an exemption keep
+    # their exemption word verbatim, exemption intact.
+    cases = [
+        # --- RED: the defect's own shape, and each marker of the alternation
+        ("multiple rounds, scores keyed by label - the 2026-08-22 defect",
+         multi + 'table = {(r, s['
+         '"label"]): s["score"] for r in rows for s in r}\n', True),
+        ("single-quoted key, a glob-style marker",
+         "reps = sorted(glob('out/*rep*'))\ns = reps[0]["
+         "'label']\n", True),
+        ("the __seed marker",
+         'args = dict(__seed=7)\nk = args['
+         '"label"]\n', True),
+        ("the repeats7 marker",
+         "fields = repeats7(g)\nk = fields[0]["
+         "'label']\n", True),
+        # --- GREEN: single round, and the correct join key (rule 15)
+        ("one pack's own manifest, where the label is the only identifier",
+         'm = json.load(open("pack.json"))\nwho = m['
+         '"label"]\n', False),
+        ("rounds joined by submissions[].submission - the correct key",
+         multi + 'who = s["submission"]\n', False),
+        # --- GREEN: the exemptions, each on the use the finding blesses
+        ("a whole-line comment",
+         multi + '# s["label"] here is fine; see the mapping\n', False),
+        ("resolving through the mapping, as field.py does",
+         multi + 'who = mapping.get(s["label"], "?")\n', False),
+        ("reading a manifest, as field.py does",
+         multi + 'listed = {e["label"] for e in manifest}\n', False),
+        ("a line naming re.search, as this check's own source does",
+         "assert not re.search(r\"\\['label'\\]\", src)\n", False),
+        # --- GREEN, and THE CHANNEL: the bug shape, excused by a bare substring in its
+        # own trailing comment. No live instance; pinned as-is so a tightening of the
+        # exemption moves this row consciously.
+        ("THE CHANNEL: the defect, excused by 'mapping' in its trailing comment",
+         multi + 'table = {(r, s["label"]): s["score"] for r in rows}  # the mapping\n',
+         False),
+    ]
+    failed = []
+    for name, src, expect_red in cases:
+        got = _pack_label_hits(src)
+        good = bool(got) == expect_red
+        if not good:
+            failed.append(
+                f"pack-label pin came out wrong: `{name}` produced {len(got)} hit(s) "
+                f"{got} where {'at least one' if expect_red else 'none'} was expected. "
+                f"The check is no longer proven to "
+                f"{'fire' if expect_red else 'stay quiet'}, so its green is not evidence.")
+        if verbose:
+            print(f"{'PASS' if good else 'FAIL'}  {name}: {len(got)} hit(s), "
+                  f"expected {'>=1' if expect_red else '0'}")
+            for g in got:
+                print(f"        {g.strip()[:120]}")
+    return failed
+
+
 def cmd_sweep() -> int:
     """Names in docs that do not resolve, and files that do not parse as what they are.
 
@@ -5569,6 +5678,7 @@ def cmd_sweep() -> int:
     flags, aspects = _argparse_flags(), _aspect_ids()
     scripts = _our_script_names()
     bare_seen = 0
+    pack_seen = 0
     problems: list[str] = []
     corpus: dict[str, str] = {}
 
@@ -5787,28 +5897,14 @@ def cmd_sweep() -> int:
     #
     # Every stored round carries submissions[].submission, resolved at judging time. That
     # is the only correct join key. This is wrong-by-construction and therefore greppable.
+    # The trigger and its exemptions live in `_pack_label_hits` so the pins drive the same
+    # code this loop runs (task 113); the property and its two blessed uses are argued
+    # there.
     for py in sorted(glob.glob(os.path.join(REPO, "**", "*.py"), recursive=True)):
         if os.sep + "runs" + os.sep in py:
             continue
-        src = open(py, encoding="utf-8", errors="replace").read()
-        multi_round = re.search(r'(rep\*|seed\*|__seed|repeats7|rounds\b)', src)
-        if not multi_round:
-            continue
-        for ln in src.split("\n"):
-            if not re.search(r"""\[\s*["']label["']\s*\]""", ln):
-                continue
-            # THE PROPERTY THIS PROTECTS IS THE SCOPE OF THE KEY, not the word `label`.
-            # A label is the primary key WITHIN one pack - that is what it is for - and is
-            # not a key ACROSS rounds, because every round reshuffles the mapping. So two
-            # uses are correct and exempt: resolving a label through a mapping (which is
-            # how submissions[].submission is produced in the first place), and reading a
-            # single pack's own manifest, where the label is the only identifier there is.
-            # Only accumulation across rounds keyed by label is wrong. The regex that
-            # defines this very check is skipped too.
-            stripped = ln.strip()
-            if (stripped.startswith("#") or "mapping" in ln or "manifest" in ln
-                    or "re.search" in ln or "re.compile" in ln):
-                continue
+        pack_seen += 1
+        for ln in _pack_label_hits(open(py, encoding="utf-8", errors="replace").read()):
             problems.append(
                 f"{os.path.relpath(py, ROOT)}: `{ln.strip()[:70]}` keys by pack label "
                 f"while reading multiple rounds. A label is scoped to ONE round - join "
@@ -5847,7 +5943,7 @@ def cmd_sweep() -> int:
     # `tools/withdrawn_control.py` showed five mutants each flipping the control that names
     # them. A gate installed while green and never seen red is the shape this file exists
     # to prevent.
-    withdrawn_problems, _ = _check_withdrawal_register()
+    withdrawn_problems, wsummary = _check_withdrawal_register()
     problems += withdrawn_problems
     # THE TRIAGE REGISTER GATES for the same reason the withdrawal register does, and on
     # the narrower question: an entry either still matches exactly one line of the file it
@@ -5883,6 +5979,11 @@ def cmd_sweep() -> int:
     # step worse: an extractor that stopped matching reports `red 0` for the REJECTED
     # candidates, which reads as "the obvious trigger was fine after all".
     problems += _count_trigger_pins()
+    # The pack-label check above ran for its whole life with no pin anywhere - finding
+    # #70 records it "Pinned both ways" and nothing made that true. These pins are what
+    # makes the archive's claim a fact rather than a hope; the exemptions they fix are
+    # load-bearing (see the function's docstring for the live-corpus measurement).
+    problems += _pack_label_pins()
 
     # A WARNING, not a gate, in the manner `tasks.py check` already uses for a smell that
     # is not a verdict. The decided half IS a verdict and would gate cleanly; the reason
@@ -5914,12 +6015,13 @@ def cmd_sweep() -> int:
         print("as what it is read as is worse: it looks right to everyone but the parser.")
         return 1
 
-    _, wsummary = _check_withdrawal_register()
     print(f"sweep clean: references over {len(refs)} docs "
           f"({len(project_docs())} project + {len(skills)} skills "
           f"+ {len(github_docs())} under .github); {len(flags)} of our "
           f"flags, of which {bare_seen} bare occurrence(s) on a fenced command line of one "
           f"of our {len(scripts)} argparse scripts (pinned red and green); "
+          f"{pack_seen} modules scanned for a cross-round join keyed by pack label "
+          f"(#70; pinned red and green; --selftest); "
           f"{len(aspects)} aspects known and every exhaustive census of them checked "
           f"against that set (pinned red and green); structure: {len(skill_files())} SKILL.md "
           f"frontmatter, {len(gated_docs())} instruction docs for list indent, "

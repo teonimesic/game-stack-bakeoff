@@ -37,7 +37,10 @@ differently — if one were refuted the other would still stand.
 
 **1. It cannot reorder anything.** Even at the 0.10 weight it briefly carried, the
 judge's maximum contribution swing was 0.0154 against a tightest adjacent gap of
-0.0622 between submissions on the deterministic tiers — a factor of four. The ordering
+0.0667 between submissions on the deterministic tiers — a factor of four. That gap is
+tier 2 alone, per game, recomputed 2026-08-23; `JUDGING.md`'s Weights section holds the
+table and the warning that 0.0622, the figure this sentence quoted for months, is
+reproduced by no recorded method. The ordering
 of every submission measured was identical with the judge at its minimum and at its
 maximum. This holds *regardless of how noisy the judge is*.
 
@@ -233,7 +236,7 @@ how much was drawn:
 | solid white, magenta or black — "the render broke and filled the screen" | **0.0**, in any colour | the **floor** |
 | a gradient with a subject drawn on it — a night platformer's sky | **0.679** | neither; it passes |
 
-A ceiling would refuse a palette, and the corpus says which one: the 7 highest of the 66 stored
+A ceiling would refuse a palette, and the corpus says which one: the 6 highest of the 66 stored
 **game** sets are all `g4_platformer`, the one game whose background scrolls across the whole
 frame. The scene is its own population and is not pooled with them.
 
@@ -413,35 +416,20 @@ Three are genre-defining and none can be settled from a frame:
   The bot finds an enemy on the tick it appears and fires into that window, so a game
   that reports the flag and ignores it fails.
 
-**13 of the 22 are pinned by a mutant.** A mutant is the reference fixture with one
+**17 of the 22 are pinned by a mutant.** A mutant is the reference fixture with one
 behaviour surgically removed: the criterion must pass the reference and fail the mutant.
 `python3 eval/judge/bot_mutants.py --hazards` reports how many criteria carry a mutant
 across all four fixtures together, and prints the hazard registry grouped by shape. It
 gives no per-fixture figure; the full run does, by driving every mutant, variant and
 control and printing one row per mutant with its fixture. That run must exit 0.
 
-A criterion may carry more than one mutant, so the mutants outnumber the criteria. The
-list below is the `ref_arena` rows of that run; read the run for the current set,
-because nothing keeps this copy in step with it.
+A criterion may carry more than one mutant, so the mutants outnumber the criteria —
+53 mutant rows over 45 criteria with at least one, across the 4 fixtures (pong 7,
+tetris3d 5, arena 17, platformer 16). The run's own output is the set: a copy of the
+`ref_arena` rows stood here and was stale within days of being written — it named as
+unpinned 4 criteria that have since carried mutants — so there is no copy to drift.
 
-- `enemies.chase` — enemies walk a fixed heading
-- `move.analog` — analog input snapped to eight-way
-- `enemy.materialises` — enemies appear fully formed
-- `enemy.kinds` — one kind wearing three names
-- `multiplier.rises` — the multiplier never rewards a streak
-- `multiplier.falls` — the multiplier survives damage
-- `multiplier.falls` — the multiplier lapses on a combo timer, and damage never touches it
-- `wall.graze` — the boundary is never reported
-- `aim.three_axis` — the depth axis is dropped from aim
-- `player.bounded` — the volume does not hold the player
-- `fire.rate_limited` — a bullet every tick
-- `fire.rate_limited` — a bullet every tick, with `fire` reported only on the rising edge
-- `score.on_kill` — a kill is worth nothing
-- `player.takes_damage` — enemies pass through the player
-- `gameover.triggers` — game over is reported and the simulation keeps stepping
-
-The unpinned 9 are `state.shape`, `player.moves`, `enemies.spawn`,
-`fire.spawns_bullets`, `aim.independent`, `bullets.kill`, `wave.advances` and the 2
+The unpinned 5 are `state.shape`, `bullets.kill`, `wave.advances` and the 2
 determinism criteria — those 2 are pinned on `ref_pong` over shared code.
 
 **`enemy.kinds` and `enemies.chase` were rewritten on 2026-08-16 (FINDINGS #46).** Both had
@@ -574,7 +562,7 @@ Three are genre-defining and invisible in a still frame:
 - `invuln.window` — hits are counted per tick *in contact*, so it measures the window
   rather than the size of the health pool.
 
-**16 of the 20 are pinned by a mutant** (`bot_mutants.py`: 40 across 4 games,
+**16 of the 20 are pinned by a mutant** (`bot_mutants.py`: 45 across 4 games,
 0 expectations unmet); the 4 that are not are `state.shape`, `stage.completes` and the
 2 determinism criteria, which are pinned on `ref_pong` over shared code. The suite
 earned its place immediately — `player.falls`
@@ -744,7 +732,8 @@ stack by construction. `JUDGING.md` holds it; it is not settled here.
 **`fidelity` is read against a written statement of the scene, which every scene pack carries.**
 "Does this look like the thing that was described" needs the description.
 `field.SCENE_STATEMENTS` holds one per scene and `field.build_pack` writes it into a scene pack —
-and only a scene pack — as `SCENE.md`. It is the same text for all 8 submissions, so it separates
+and only a scene pack — as `SCENE.md`. It is the same text for every submission of its
+scene, so it separates
 nothing, and the brief names it. The rendered scene prompt is not a candidate: it exists per
 stack, and handing a judge one would name the arm in the evidence.
 
@@ -760,13 +749,17 @@ sufficient:
 
 ```bash
 python3 judge/weight_sensitivity.py --selftest    # SELFTEST PASSED, 12 controls
-python3 judge/weight_sensitivity.py runs/*        # groups: 10  FLIPS=0  STABLE=3  UNIDENTIFIABLE=7
+python3 judge/weight_sensitivity.py runs/*        # groups: 11  FLIPS=0  STABLE=3  UNIDENTIFIABLE=8
 ```
 
-1. **The population is empty.** All 10 groups the sweep finds are games — 25 `g1_pong`,
-   19 `g2_tetris3d`, 16 `g3_arena` and 24 `g4_platformer` stored gradings, and **0** scene
-   gradings, because no scene has been built. A sweep over no scene is not a null result
-   about scenes.
+1. **The population the question needs is empty.** The sweep finds **11** groups: 10 game
+   groups — 25 `g1_pong`, 19 `g2_tetris3d`, 16 `g3_arena` and 8 `g4_platformer` stored
+   gradings, the last excluding the 16 superseded `wg-g4c-capgate` gradings of the same
+   8 work trees — and, since 2026-08-25, 1 scene group (`wg-scene-s1ts` `s1_parallax`,
+   n=1) carrying tier-1 and tier-2 gradings only. **0 scene tier-3 rounds exist** — none
+   of the ledger's 97 stored rounds (`judge_ledger.py --tree runs/`) — because no scene
+   field has ever been packed, so a `w3` sweep would have no scene rounds to vary. A
+   sweep over no scene tier-3 rounds is not a null result about scenes.
 2. **It sweeps the wrong parameter for this question.** `weight_sensitivity.py` varies `w1`
    over the pair `(tier 1, tier 2)`. The scene tier-3 weight is `w3` over `(tier 2, tier 3)`,
    which this tool does not sweep and which no stored round could answer anyway.

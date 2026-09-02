@@ -158,6 +158,6 @@ denominator.
 - `python3 eval/judge/verify_blind.py` — exit 0, unpiped; criterion ids must not leak into any
   prompt
 - The reference fixture's own `just verify` — exit 0
-- Register in `evaluate.py` and `RUBRIC.md`
+- Register in `eval/judge/evaluate.py` and `eval/judge/RUBRIC.md`
 - Calibrate cost with **two trials in different cells**, and quote the range, not a point
-  estimate — within-cell spread has been measured at 1.6×
+  estimate — within-cell spread has been measured at 1.6× (#23)

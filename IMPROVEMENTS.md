@@ -18,6 +18,12 @@ finding is the same for both loops. `eval/IMPROVEMENTS.md`'s preamble states it.
 
 **Status: PRE-REGISTERED, not yet run.**
 
+> **Still true, re-verified 2026-09-02.** Nothing added since grades the device-input path:
+> every tier-1 id and every tier-2 id is probe/simulation-path, and #128's four harder
+> criteria replay a *played* tape through the same probe. The execution is filed as
+> `tasks/233` (offline, no agent spend); this note exists so the next reader does not
+> re-derive that the iteration is still live.
+
 ### Why this first
 
 The play-bot tier carries **the whole grade** — 0.69 of it when this was written, and 1.00
@@ -79,6 +85,13 @@ Both directions, or the new criterion is worth nothing.
 ## Iteration 2 — a design judge for aesthetics and game feel
 
 **Status: PRE-REGISTERED, not yet built.**
+
+> **Built, and its falsification has never run (established 2026-09-02).**
+> `judge/judge_design.py` and `judge/design_criteria.py` exist with exactly this shape —
+> frames + telemetry, no source, anchored 0–4, no weight until separation — and price their
+> calls through `tokenvalue.py`'s PRODUCERS. No stored round, no doc, no decision records a
+> run. `tasks/234` is filed to run the tuned-vs-detuned measurement or retire the module as
+> superseded by the aspect tier; until then this status line is false in the other direction.
 
 ### Why this is not a reversal of dropping the code judge
 
@@ -215,6 +228,14 @@ One line in `starters/unity/tools/unity-compile.sh`, immediately after the copy:
 `starters/` is the product, so applying this is a **regime boundary**: it needs
 `judge/verify_blind.py`, `judge/starter_parity.py` and a `eval/RUNS.md` comparability note, and
 no future matrix would pool with any previous one on Unity. **Awaiting a decision.**
+
+> **Applied — the decision was made and this section was never closed out (established
+> 2026-09-02).** The prepared guard is in `eval/starters/unity/tools/unity-compile.sh` under
+> `if [ "$STRICT" = "warnings" ]`, with the arm-B negative and the ~2 s cold-path cost recorded
+> in its comment. The predicted consequence is visible and verified: `g4_platformer__unity__t1`
+> is in tier 1's failing 8 — `verify.green` and `lint.clean` both exit 1 on the re-grade — while
+> its tier 2 stays 1.000. The submission ships code failing its own strict gate; #66 remains
+> valid as a description of what the agent was told at the time.
 
 **Pins to run with it, both directions:** arm A must go exit 0 → exit 1 with five CA1861, *and* a
 tree with no violations must stay exit 0. Without the second, this is a gate proved only in the

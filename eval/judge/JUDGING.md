@@ -145,9 +145,11 @@ them all and does not — this table said five for as long as `ASPECTS` held six
 | `motion` | scene | frames | the same 12 frames |
 | `framework_fluency` | scene | source | anonymised source + `CHANGED.txt`, **extensions kept** — see the cross-stack bar below |
 
-**The 3 scene aspects have never met a submission.** No scene has been built, so no scene
-field has been packed and no round has been run; every word about them is design, not result.
-`eval/SCENES.md` is the authority for the class and states what each one is for.
+**The 3 scene aspects have never met a submission.** No scene field has been packed and no
+round has been run. One scene trial exists on disk (`s1_parallax__ts__t0`, 2026-08-25) and was
+killed mid-build — its own record says it is not a submission and no frames exist — so every
+word about them is design, not result. `eval/SCENES.md` is the authority for the class and
+states what each one is for.
 
 **2 aspects are barred from a cross-stack ranking, and the bar is readable by code.**
 `Aspect.cross_stack_bar` holds the reason, and `field_ranks.py` prints it beside every figure
@@ -589,7 +591,7 @@ genuine 'competent but unremarkable hobby project' anywhere either."*
 | submissions whose score changed | **4 of 8** |
 | mean absolute score shift | 0.5 |
 
-Iteration 6 in `../IMPROVEMENTS.md` pre-registered the falsifier as *"Kendall tau between the
+Iteration 6 in `eval/IMPROVEMENTS.md` pre-registered the falsifier as *"Kendall tau between the
 two orderings is < 0.5"*. It is 0.143. **A ranking that moves this much when the pack is
 reshuffled is a presentation artifact**, and no amount of further sampling makes it one.
 
@@ -1449,14 +1451,21 @@ discrimination, independence and stability numbers; do not bring an argument.
 
 ## What would improve the layer most, in order
 
-1. **Adjudicate the 11 existing firings against frames.** Free. Determines whether the only measured
-   signal in the entire subjective layer is real or a capture artifact.
-2. **Build the idiomatic-stack-use judge.** The only aspect whose subject is the variable under test.
-3. **Retire or radically rewrite the ten code criteria.** They produced zero information across 24
-   submissions. Rewriting them as comparative — *rank these eight codebases* — is the only version
-   worth keeping; asking "is this good code" of work that is uniformly competent will always
-   saturate.
-4. **Add gameplay and tuning judges** fed by telemetry that already exists.
+Filed 2026-08-16 as the layer's priority list. Items 1-4 are now closed; what remains open
+lives in `tasks/`, and the layer matrix above holds the candidates never started.
+
+1. **Adjudicate the 11 existing firings against frames.** DONE — all eleven were adjudicated
+   against frames and source, and none is a property of the games: the only measured signal the
+   layer had was a capture artifact (*That ordering is withdrawn* above; `FINDINGS.md` §26).
+2. **Build the idiomatic-stack-use judge.** DONE — `idiomatic` is one of the 9 aspects and has
+   run on three fields. It is cross-stack barred on measurement (#53), so its results read per
+   stack and are never pooled.
+3. **Retire or radically rewrite the ten code criteria.** DONE — the 13-criterion generalist was
+   replaced by the specialist aspects, and the comparative form this item asked for is what
+   "each judge scores the whole field" is (`RUBRIC.md`, *Why the previous rubric was replaced*).
+4. **Add gameplay and tuning judges** fed by telemetry that already exists. PARTLY — `fun` reads
+   the frames and the play-bot's telemetry, and the pre-registration below is its result; a
+   separate difficulty-and-tuning aspect was never built.
 5. **Decide whether audio belongs in the task set.** DONE — the task now requires it, and the
    mechanical half is graded deterministically (six criteria, each with a mutant that makes it go
    red). The `audio` judge is left only the part a script cannot answer: fit and readability.
