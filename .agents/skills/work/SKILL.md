@@ -90,7 +90,7 @@ The steps are the ticket's. These are the properties every result here is held t
 
 | Never | Why |
 |---|---|
-| `eval/starters/*/`, `template*/` | The **product** — what a building agent reads. Editing one is a regime boundary: `verify_blind.py`, `starter_parity.py`, `starter_gate_control.py`, and a note in `eval/RUNS.md`. |
+| `eval/starters/*/` | The **product** — what a building agent reads. Editing one is a regime boundary: `verify_blind.py`, `starter_parity.py`, `starter_gate_control.py`, and a note in `eval/RUNS.md`. |
 | `eval/findings/`, `eval/FINDINGS.md` | The archive. A number published and later proven wrong **stays**, marked. |
 | Regime boundaries in `eval/RUNS.md` | They say which runs may be compared with which. |
 | Files another agent is editing | Ask the orchestrator, or file a task. A conflict in a doc that states what is true now costs more than the edit is worth. |

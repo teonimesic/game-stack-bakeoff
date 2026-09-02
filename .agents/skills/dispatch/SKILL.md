@@ -415,6 +415,11 @@ the bodies moved. Renumbering means the heading, the index row, **and** every ci
 Then, unpiped: `docstat.py --sweep`, `docstat.py --renumbered`, `tasks.py check`. Renumbering
 creates stale citations that still *resolve* — `--renumbered` is what finds them.
 
+If the branch touches `.agents/skills/`, the merge settles finding #153's open limit: count the
+SkillSpector attachments on that pull request's reviews and record the count beside the switch in
+`DECISIONS.md`. The disable of 2026-08-24 is verified only by a skill diff that arrives through a
+pull request — skill changes made by direct push verify nothing, and no other gate reads this.
+
 Whatever records **what was established and what it cost** — not what was changed — is now the
 **pull request body**, because that is what the squash lands as the commit message. Resolution
 commits made on the branch still go in through `git commit -F` with a file, for the reason given

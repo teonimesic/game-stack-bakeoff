@@ -90,6 +90,17 @@ the mutants are the reason this one exists, because a clean checkout cannot tell
 from the index and the glob it replaced passes every live row. It builds throwaway git
 repositories under `$TMPDIR` holding markdown that is not in them, so it needs `git` and no
 history.
+`withdrawn_control` is the withdrawal register's controls, and since 2026-09-01 its default
+runs the clean pass **and all 5 mutants** — `time python3 eval/tools/withdrawn_control.py`,
+about 15s locally, most of it `git show` over 3 historical revisions that the process reads
+once and shares across the mutant runs (`--clean-only` is the controls alone, 5s). Until then
+the five flips that justified wiring the register as a gate at all had run only when an
+operator asked — `corpus_control`'s sweep docstring records the same defect and its repair
+(PR 54; written without the sigil because a hash followed by 54 is the match pattern of a
+withdrawn finding, and a live document may not state it outside a declared block), and this
+file had not received it. `fragment_control`,
+`findings_control` and `backup_evidence_control` carry opt-in mutants on the same shape; their
+conversion is filed, not done here.
 `runner_capture_selftest` is `eval/judge/capture_selftest.py` pointed at the agent harness: 2.26s
 locally, of which 2.0 is a deliberate child timeout, so it spends wall clock rather than CPU and
 does not move with the runner.

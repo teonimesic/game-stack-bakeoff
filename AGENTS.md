@@ -11,7 +11,7 @@ code: **a number that is wrong is worse than no number, because it gets acted on
 | `README.md` | The front door, and deliberately only four things: what the project is, what it has found, how to run it, how a submission is graded. **It states no information particular to a run** — no run names, no per-run costs, no trial ids. That belongs in `eval/RUNS.md` |
 | `tasks/` | **What is not done yet** — one file per task, grep-first. `python3 eval/tools/tasks.py next` gives the item to work on; read one task, never the queue. Every task states how you would know it is done. See the `tasks` skill |
 | `DECISIONS.md` | What is decided and why |
-| `eval/FINDINGS.md` | Findings #19-#212 — the range, and the count agreeing with it, from `python3 eval/tools/docstat.py --findings`. Includes marked retractions and withdrawals. **Check whether a number has been retracted before trusting it** |
+| `eval/FINDINGS.md` | Findings #19-#213 — the range, and the count agreeing with it, from `python3 eval/tools/docstat.py --findings`. Includes marked retractions and withdrawals. **Check whether a number has been retracted before trusting it** |
 | `IMPROVEMENTS.md` (root) | the improvement loop for the **templates** — each iteration a hypothesis, a change, and a measurement that could have come out against it |
 | `eval/IMPROVEMENTS.md` | the same loop for the **evaluator**. Two files share a name; cite the path, never "IMPROVEMENTS iteration 1b" |
 
@@ -56,7 +56,7 @@ skill that lives in a home directory silently applies to unrelated work.
 
 The real files live at `.agents/skills/<name>/SKILL.md`, and **that is the sole authoritative
 path — edit there.** `.claude/skills` is a **symlink** to it, so every path below resolves to
-the same nine files. Invoke the one that covers what you are about to do rather than
+one set of files. Invoke the one that covers what you are about to do rather than
 reconstructing the procedure — each encodes failures that cost trials.
 
 **One copy, any number of pointers.** `.agents/` is the cross-tool convention, so Codex, Claude
@@ -69,7 +69,7 @@ what would re-open it, is in `DECISIONS.md`.
 
 **The pointer is load-bearing and it fails silently.** Measured against `claude` 2.1.220: a
 project holding only `.agents/skills` loads **no skills at all**. Delete `.claude/skills` and the
-nine files are still there, still at the authoritative address, and unreachable by every agent —
+files are still there, still at the authoritative address, and unreachable by every agent —
 so `docstat.py --sweep` asserts the symlink exists and resolves, rather than only counting files.
 `eval/tools/skill_layout_control.py` pins that gate red on all five ways the layout can break.
 

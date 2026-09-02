@@ -453,6 +453,14 @@ def test_harness_uses_it() -> None:
     stay green forever while every run kept losing its manifest.
     """
     print("\nthe harness write path")
+    # THE SKIP LIST IS THE SHARED ONE (task 227), by IDENTITY rather than equality: a
+    # locally redefined twin with equal value would be a second definition, and a second
+    # definition is exactly what drifted between the census producers.
+    import agent_harness
+    check(M.NOT_A_RUN is agent_harness.NOT_A_RUN,
+          "manifest's NOT_A_RUN is the shared skip list object, not a local twin")
+    check('frozenset({' + '"work"' not in (HERE / "manifest.py").read_text(),
+          "no literal skip list is left in manifest.py")
     wg = HERE.parent / "wholegame.py"
     src = wg.read_text()
     check('"suite.json").write_text' not in src,

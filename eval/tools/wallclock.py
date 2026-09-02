@@ -69,10 +69,10 @@ import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from census import (  # noqa: E402
-    DEFAULT_RUNS, WHOLEGAME_KEY, CensusError, load_records, task_class_of,
-)
+from agent_harness import population_of  # noqa: E402
+from census import DEFAULT_RUNS, CensusError, load_records  # noqa: E402
 
 #: The agent CLI's own duration, in milliseconds, wherever it is stored.
 SELF_REPORT_KEY = "duration_ms"
@@ -153,13 +153,6 @@ def self_report_seconds(runs_dir: Path, run: str, record: dict) -> tuple[float |
         else (None, "artifact_unusable")
 
 
-def _population(record: dict) -> str:
-    """`whole-game`, `scene` or `spec-change`, by `census`'s own partition."""
-    if WHOLEGAME_KEY not in record:
-        return "spec-change"
-    return "whole-game" if task_class_of(record) == "game" else "scene"
-
-
 def _stats(values: list[float]) -> dict:
     """min / p25 / median / p75 / max over a non-empty list, or all `None`."""
     if not values:
@@ -185,7 +178,7 @@ def reconcile(runs_dir: Path) -> dict:
     pops: dict[str, dict] = {}
     negatives: list[dict] = []
     for run, _name, data in records:
-        pop = pops.setdefault(_population(data), {
+        pop = pops.setdefault(population_of(data), {
             "records": 0, "paired": 0, "no_harness_clock": 0,
             "harness_clock_hours": 0.0, "self_report_hours": 0.0,
             "deltas": [], "addresses": {},
@@ -444,6 +437,12 @@ def selftest() -> int:
         r = reconcile(runs)
         pops, agree = r["populations"], r["agreement"]
 
+        # THE PARTITION IS THE SHARED ONE (task 227), by identity: a locally redefined
+        # twin with equal value would be a second definition, and a second definition
+        # is exactly what drifted between the two census producers.
+        import agent_harness
+        check("population_of is the shared classifier",
+              population_of is agent_harness.population_of, True)
         check("three populations", sorted(pops), ["scene", "spec-change", "whole-game"])
         check("spec-change records", _dig(pops, "spec-change", "records"), 2)
         # If the nested run were lost this reads 1, with every other row still green.
