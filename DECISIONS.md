@@ -3174,15 +3174,15 @@ large one is counted as unreadable rather than as a jump. **The shipped estimato
 the reference, 5 of 44 on the nearest-first variant, 2 of 44 on the 1.5x variant — and every one
 of the 8 is the same shape**, on the band holding a car the camera follows.
 
-**No criterion has met a submission, and that is stated wherever a scene score is reported.** The
-thresholds were chosen against fixtures written by the same hand as the criteria.
+**1 submission has now met these criteria, and the two populations are stated apart wherever a
+scene score is reported.** Every threshold was still chosen against fixtures written by the same
+hand as the criteria; the stored population is work an agent produced, and neither is the other.
 `scene_mutants.py --census` reports what each criterion separated over FIXTURES and says so;
 `--census --runs-root <main checkout>/eval/runs` additionally reads every stored scene grading
 under the root into per-criterion tables under its own banner, refuses a record that does not
 carry exactly the shape `scene_probe.drive` writes — named reason, named file, in no count — and
-prints `NOT ASKED` on a tree holding no gradings rather than `0 separated` (task 232 extended it;
-the `--runs-root`-prints-NOT-ASKED-only behaviour it replaced is the empty-tree arm of the same
-contract). `--census-selftest` proves the census can say NO, in both halves.
+prints `NOT ASKED` on a tree holding no gradings rather than `0 separated`. `--census-selftest`
+proves the census can say NO, in both halves.
 
 **To re-open:** a real submission that any criterion fails for a reason that is not about the
 submission — which is #46's shape and the honest prior here; an estimator miss that is not the

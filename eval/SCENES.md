@@ -151,9 +151,8 @@ banners:
     python3 judge/scene_mutants.py --census --runs-root <main checkout>/eval/runs
 
 `--census` alone reports over FIXTURES only. With `--runs-root` it also tabulates every stored
-scene grading under the root beside them — `python3 ... --census --runs-root <main
-checkout>/eval/runs` reads 1 stored grading today — naming every file, and refusing a record that
-does not carry exactly the shape `scene_probe.drive` writes rather than guessing.
+scene grading under the root, names every file, and refuses a record that does not carry
+exactly the shape `scene_probe.drive` writes rather than guessing.
 
 **First contact with a real submission found a false negative and 2 criteria it could not set
 up at all.** What it found, on which trial, with the numbers, is in `eval/RUNS.md`.

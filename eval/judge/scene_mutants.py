@@ -1548,6 +1548,11 @@ def census_selftest() -> int:
         stored = buf.getvalue()
         lines = stored.splitlines()
         abs_paths = {rel: str(root / rel) for rel in files}
+        # The census prints a refusal as the record's path line followed by its
+        # reason line, so a match needs BOTH lines, never one.
+        def refused_as(rel: str, token: str) -> bool:
+            return any(abs_paths[rel] in ln and token in nxt
+                       for ln, nxt in zip(lines, lines[1:]))
         checks = [
             ("the stored section is its own, named apart from the fixture tables",
              "STORED SCENE GRADINGS" in stored and "the corpus" in stored),
@@ -1559,14 +1564,14 @@ def census_selftest() -> int:
             ("a game-tier playbot.json is neither counted nor refused",
              "g1_pong" not in stored),
             ("the string verdict is refused by name",
-             any(abs_paths["run-d/artifacts/s1_parallax__ts__t2/eval/playbot.json"] in ln
-                 and "MALFORMED_CRITERION" in ln for ln in lines)),
+             refused_as("run-d/artifacts/s1_parallax__ts__t2/eval/playbot.json",
+                        "MALFORMED_CRITERION")),
             ("the unparseable record is refused by name",
-             any(abs_paths["run-e/artifacts/s1_parallax__ts__t3/eval/playbot.json"] in ln
-                 and "UNREADABLE_JSON" in ln for ln in lines)),
+             refused_as("run-e/artifacts/s1_parallax__ts__t3/eval/playbot.json",
+                        "UNREADABLE_JSON")),
             ("a slot record naming a third tier is refused by name",
-             any(abs_paths["run-f/artifacts/s2_glass__gd__t0/eval/playbot.json"] in ln
-                 and "UNCLAIMED_SLOT" in ln for ln in lines)),
+             refused_as("run-f/artifacts/s2_glass__gd__t0/eval/playbot.json",
+                        "UNCLAIMED_SLOT")),
             ("the per-scene header states its population",
              "s1_parallax: 2 stored grading(s)" in stored
              and "s2_glass: 1 stored grading(s)" in stored),
@@ -1650,8 +1655,12 @@ def census_selftest() -> int:
         checks.append(("the well-formed record reads as a grading",
                        isinstance(read_stored_grading(good, "p"), StoredGrading)))
 
-        bad += [name for name, ok in checks[n_unit:] if not ok]
-        for name, ok in checks[n_unit:]:
+        # EVERY stored check is asserted and printed. An earlier version sliced
+        # `checks[n_unit:]`, which skipped the 13 in-situ checks above entirely - they
+        # were computed and discarded while this line still reported them met, and the
+        # stored half of the selftest could not say NO (found by review on task 232).
+        bad += [name for name, ok in checks if not ok]
+        for name, ok in checks:
             print(f"  {'ok  ' if ok else 'FAIL'} {name}")
 
         # An empty tree and a game-only tree are NOT ASKED, never a zero result.
