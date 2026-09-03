@@ -250,6 +250,13 @@ WHOLEGAME_KEY = "game"
 #: Which task class a stored record belongs to. Written by `wholegame.py build`.
 TASK_CLASS_KEY = "task_class"
 
+#: The field a whole-game or scene record partitions on. `wholegame.py build_trial`
+#: writes it into every record it builds, game and scene alike — the launch names the
+#: stack — so a record of either population without a usable one is corrupt or
+#: hand-edited, not a shape this harness produced. The retired suite never wrote the
+#: field, which is why requiring it is a property of a POPULATION, not of every record.
+STACK_KEY = "stack"
+
 #: Every task class this project partitions on. A PRESENT value outside it is refused,
 #: never pooled.
 TASK_CLASSES = frozenset({"game", "scene"})
@@ -264,6 +271,16 @@ _ABSENT = object()
 
 class TaskClassError(ValueError):
     """A record's `task_class` is present and is not one this project partitions on."""
+
+
+class StackError(ValueError):
+    """A record that partitions on `stack` carries no usable one.
+
+    Raised rather than a bare `KeyError` for the same reason `TaskClassError` exists:
+    the producers read `stack` inside comprehensions over every record, where nothing
+    can name a file. The loaders catch this one and re-raise their own error with the
+    path prefixed — the same wrap they already put around `TaskClassError`.
+    """
 
 
 def task_class_of(record: dict[str, Any]) -> str:
@@ -327,6 +344,39 @@ def population_of(record: dict[str, Any]) -> str:
     if WHOLEGAME_KEY not in record:
         return "spec-change"
     return "whole-game" if task_class == "game" else "scene"
+
+
+def stack_of(record: dict[str, Any]) -> str:
+    """The stack a whole-game or scene record partitions on; `StackError` if none.
+
+    ONE definition of "usable stack", behind every producer that groups stored records
+    by stack. It was spelled in `tools/cost_census.py` alone until the second consumer
+    (`tools/census.py`'s game x stack cells and stacks counters) read `d["stack"]` bare
+    and died on a `KeyError` naming no file — and spelling the test twice, once per
+    producer, is the shape task 227 already repaired one level up: two definitions of
+    which records may enter a published partition, with nothing asserting they agree.
+
+    **Classify FIRST, then call this.** It does not classify: a spec-change record
+    legitimately carries no `stack`, and running it through here would refuse a
+    population it has nothing to say about. The requirement is a property of the two
+    populations whose figures partition on the field (`STACK_KEY`'s comment).
+
+    A PRESENT VALUE THAT IS NOT A USABLE NAME IS REFUSED WITH THE ABSENT ONE. `None`
+    from `"stack": null` is hashable and would group as a stack named `None` — inside
+    a published counter, spelled that way; `""` and a non-string are the same refusal.
+    Absent and unusable differ in the MESSAGE only, the way `_at` distinguishes an
+    absent field from an unreadable one: neither is acceptable here, but a reader who
+    is looking at a truncated record deserves to be told which of the two it is.
+    """
+    stack = record.get(STACK_KEY)
+    if isinstance(stack, str) and stack:
+        return stack
+    if STACK_KEY not in record:
+        raise StackError(
+            f"`{STACK_KEY}` is absent — a whole-game or scene record partitions on it, "
+            "and every record a game or scene launch writes carries one")
+    raise StackError(
+        f"`{STACK_KEY}` is {stack!r}, which is not a usable stack name")
 
 
 #: Directories holding trees written by a building agent or a toolchain, not by a

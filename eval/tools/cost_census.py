@@ -123,14 +123,19 @@ import tokenvalue  # noqa: E402
 # `task_class: scene` — into the whole-game population here and into the scene population
 # there, the two producers' totals for one tree disagreeing by one with nothing reporting
 # it (task 227). The classifier is imported, and the selftests pin the import in both
-# directions.
+# directions. The "usable stack" test below joined them one defect later (task 230):
+# census.py's partition read `d["stack"]` bare over records guaranteed only `game` and
+# died on a KeyError naming no file, and this file's own spelling of the same test was
+# the second definition that made the repair a matter of importing rather of restating.
 from agent_harness import (  # noqa: E402
     NOT_A_RUN,
     TOKVAL_HARNESS,
     WHOLEGAME_KEY,
+    StackError,
     TaskClassError,
     harness_of,
     population_of,
+    stack_of,
 )
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -322,10 +327,14 @@ def _validate_wholegame(path: Path, d: dict) -> None:
         raise CostCensusError(
             f"{path}: whole-game record has no usable `game` (got {game!r})")
 
-    stack = d.get("stack")
-    if not isinstance(stack, str) or not stack:
-        raise CostCensusError(
-            f"{path}: whole-game record has no usable `stack` (got {stack!r})")
+    # ONE definition of a usable `stack` (task 230): the shared reader behind
+    # census.py's whole-game and scene stacks too. It was spelled here alone until the
+    # second consumer read the same field bare and crashed; this branch wraps the shared
+    # refusal with the path, which the reader itself cannot know.
+    try:
+        stack_of(d)
+    except StackError as exc:
+        raise CostCensusError(f"{path}: {exc}") from exc
 
     cost = agent.get("cost_usd")
     if cost is not None and not _is_number(cost):
@@ -1506,7 +1515,7 @@ def selftest() -> int:  # noqa: PLR0915 - one pin per line is the point
         # record AND on a spec-change one. The no-`game` branch of `population_of` used
         # to return "spec-change" BEFORE the class was read, so this tool validated the
         # record at load and REPORTED it under spec-change while census.py's loader
-        # (which calls `task_class_of` directly) refused the same bytes — one malformed
+        # refused the same bytes — one malformed
         # record, refused by one producer and counted by the other. Reading the class is
         # the classifier's job on every record, spec-change included; and a non-string
         # class (`[]`) must raise the refusal the loaders wrap, not the `TypeError` an
