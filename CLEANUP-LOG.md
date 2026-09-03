@@ -4850,3 +4850,28 @@ excluded from pruning by the skill's own never-list.
 cx 114 and ci_minutes `_selftest` at cx 216 are the two biggest functions in the repo) —
 readable for split candidates, low urgency, and each is a pinned selftest where churn
 is its own risk.
+
+## Pass 59 — the complexity pointers Pass 58 left: the selftest pin-tables
+
+**Area:** the two biggest functions in the repo, named by Pass 58's next-pass candidate —
+`eval/tools/ci_minutes.py:2281 _selftest` (cx 216) and `eval/judge/blurb_selftest.py:487
+main` (cx 152) — plus `eval/tools/cost_census.py:1032 selftest` (cx 114, already
+`# noqa: PLR0915`).
+
+**Verdict: all three judged sound; no changes; no tasks filed.** All three are the same
+idiom: a linear sequence of one assertion (or `check()`) per line, each carrying its own
+reasoning comment, with the pins' subjects separated by banner comments. The cyclomatic
+score counts branches that are *independent assertions*, not decision logic — splitting
+one pin table into N helpers would move the score while making every pin harder to find,
+which is churn with no reader benefit. cost_census already carries this exact adjudication
+in a noqa ("one pin per line is the point"); the other two are the same shape and now have
+this entry instead of a noqa each.
+
+**Read in support, no action:** `prune_scan` complexity list top rows re-checked after the
+readings (cx 216/152/114 are the 3 biggest; the next is docstat at lower counts inside an
+actively-churning file — hotspot territory, not this pass). Queue checked before starting:
+no existing task covers these functions.
+
+**Next pass candidate:** none carried forward from this pass — the two named candidates
+are closed as sound. The `dup` rows Pass 58 judged sound (starter notes, tasks/01..11
+preambles) remain the most recent reads of their pairs.
