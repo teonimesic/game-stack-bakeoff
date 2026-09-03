@@ -4875,3 +4875,35 @@ no existing task covers these functions.
 **Next pass candidate:** none carried forward from this pass — the two named candidates
 are closed as sound. The `dup` rows Pass 58 judged sound (starter notes, tasks/01..11
 preambles) remain the most recent reads of their pairs.
+
+## Pass 60 — the work root's disk (`~/game-research-work`), the cleanup monitor's own hint
+
+**Area:** the gitignored scratch the run harness writes to — never a pass subject before
+(the log's 60 previous entries all read repository text or code; the monitor's disk line
+names this path and no pass had followed it). Trigger: the work root read **9.5G**, 9.3G of
+it one run — the scene field that completed this session.
+
+**What was read before anything was touched:** a per-trial `du` of the run's work dir; the
+archived-submission check over all 8 trials of `wg-scene-s1field-2026-09-02` in
+`eval/runs/` (every one has a `submission.tar.gz` — godot 828K/336K, rust 520K/148K, ts
+104K/104K, unity 38M/38M — so no work tree holds the only copy of any submission); and the
+`_targets` layout, which turned out to be a per-trial cargo cache living INSIDE the run's
+work dir (`_targets/s1_parallax__rust__t0/…`), not a machine-wide cache.
+
+**Cleared: ~9.2G.** `_targets` (8.9G — provably dead: it is per-run by construction, so a
+re-run in a new run dir would build its own and never read this one) and the 6 failed
+trials' work trees (7.3G among them rust's two; the ts/unity trees were near-empty stubs —
+their agents died at turn 1). Work root now 312M. **Kept:** the 2 completed godot trees
+(70M/67M) — the only graded submissions' originals, kept until the field's story closes
+(the 6-cell re-run decision is open with the operator); and the 174M `wg-scene-s1ts-2026-08-25`
+tree, whose hand-capture story is load-bearing in `eval/RUNS.md`'s first-scene entry.
+
+**Also read, no action:** the `todo` section — all 4 hits are the scanner's own marker
+regex and `eval/runner.py`'s stub-detector pattern searching FOR TODOs, not TODOs. Sound.
+`field.py` as a candidate is VOID: a dedicated fourth pass read all 2157 lines on
+2026-08-28, and its churn is expected (the tier-3 machinery 145 will use). `dead`: 0.
+`dup` rows: unchanged from Pass 58's read. Free disk after: 356Gi → no pressure either way;
+this pass ran because dead scratch is dead regardless of pressure.
+
+**Next pass candidate:** none from this pass. If the operator declines the re-run, the 2
+kept godot trees become the next candidate (~137M, trivial).
