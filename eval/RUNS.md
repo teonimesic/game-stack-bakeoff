@@ -32,6 +32,7 @@ disk on 2026-08-15; neither is carried forward from a previous version of this f
 | `wg-audio48-2026-08-14T19-55-47` | **16** | $486.27 | $486.27 | 16 completed | pong 8, tetris 8 | **audio** | $48 / 250t |
 | `archive-arena2d-wg-audio48` *(superseded, kept)* | 8 | $118.62 | **$130.39** | 3 completed, 1 max_turns, 4 wedged/killed | arena **2D** | audio | $48 / 250t |
 | `wg-arena3d-2026-08-15T12-46-30` ⚠️ **NOT COMPARABLE ACROSS STACKS** | 8 | **$374.05** | $374.05 + retries | **8 completed** | arena **3D** | audio + 3D arena | **no cap / 1000t** |
+| `wg-scene-s1field-2026-09-02` — **the first scene field; 2 of 8 completed, the account's quota window took the rest** | 8 | $240.62 | $240.62 | 2 completed, 6 api_error | s1_parallax | **scene** | **no cap / 1000t** |
 
 > ⚠️ **`wg-arena3d` IS NOT A FOUR-WAY RESULT.** Its eight cells were built on two different
 > machines-in-effect: rust and ts on 15 Aug with `syspolicyd` pegged at ~100% CPU gating
@@ -41,12 +42,12 @@ disk on 2026-08-15; neither is carried forward from a previous version of this f
 > correct about the artifacts and say nothing about the stacks. Detail and agent quotes below
 > and in FINDINGS #49.
 
-**Cumulative, re-read from disk on 2026-09-01. Two figures, because they count two things.**
+**Cumulative, re-read from disk on 2026-09-03. Two figures, because they count two things.**
 
 | | | source |
 |---|---|---|
-| agent trials, **surviving records** | **$2,466.31** over 163 trials in 25 run directories, **161 of them priced** | `python3 eval/tools/census.py` — `agent.cost_usd` in every `runs/**/trials/*.json`, at any depth. **2 of the 163 are unpriced**: the prime-agent probe, whose vendor's USD is not addable to this figure, and the scene trial, killed before its agent reported any cost |
-| specialist-judge rounds | **$334.41** over 97 rounds in 12 sweep directories | `judge/judge_ledger.py --tree runs/` |
+| agent trials, **surviving records** | **$2,706.92** over 171 trials in 26 run directories, **169 of them priced** | `python3 eval/tools/census.py` — `agent.cost_usd` in every `runs/**/trials/*.json`, at any depth. The producer now splits this tree three ways — whole-game 91, scene 9, spec-change 71 — and the SCENE population is **never pooled with the whole-game figures** (different task class, instrument, criteria). **2 of the 171 are unpriced**: the prime-agent probe, whose vendor's USD is not addable to this figure, and the scene trial of 2026-08-25, killed before its agent reported any cost |
+| specialist-judge rounds | **$334.41** over 97 rounds in 12 sweep directories | `judge/judge_ledger.py --tree runs/` — unchanged today: the scene field produced no judge rounds |
 
 **Records, not totals, and the gap is real but not summed here.** A retry overwrites the record
 of the attempt it replaces (#36), so the true figure is **at least** $2,466.31. It was measured
@@ -405,15 +406,26 @@ a measurement of 16 cells.
 `wholegame.py plan --scenes …` prints this beside the cost table, which is scaled from game
 trials and says nothing about a scene.
 
-## `wg-scene-s1field-2026-09-02` — the first scene FIELD. IN FLIGHT at this writing; real numbers land at grading
+## `wg-scene-s1field-2026-09-02` — the first scene FIELD: 2 of 8 trials completed; the account's quota window exhausted mid-campaign
 
 | | |
 |---|---|
 | what | **8 trials** — `s1_parallax` × {godot, rust, ts, unity} × 2 — the first scene field ever packed. Config read from the driver's own record, `suite.json`: `task_classes: {s1_parallax: scene}`, `harness: claude`, `model: opus`, `max_turns: 1000` (the driver's default; no flag passed), `max_budget_usd: None` (no money flag passed, per DECISIONS.md), `parallel: 2`, `started_at 2026-09-02T17:13:54Z`. Claude arm only: scenes and a second harness would be 2 variables (`eval/SCENES.md` sequencing) |
-| launch gate | both operator conditions checked at **2026-09-02T17:13:18Z**, before launch: **(a)** load average **3.50 / 3.15 / 3.46** on 16 cores, no other agent session or build running, no whole-game driver alive, orphaned-engine sweep clean; **(b)** capacity probe `claude -p 'Reply READY.'` → `READY`, exit 0, and the result recorded here before the first trial started |
+| launch gate | both operator conditions checked at **2026-09-02T17:13:18Z**, before launch: **(a)** load average **3.50 / 3.15 / 3.46** on 16 cores, no other agent session or build running, no whole-game driver alive, orphaned-engine sweep clean; **(b)** capacity probe `claude -p 'Reply READY.'` → `READY`, exit 0, and the result recorded here before the first trial started. **The probe was necessary and not sufficient** — it measured capacity at launch; the window then ran out ~4 h 20 m into the campaign. A capacity check does not bound an overnight run |
 | pre-launch | `precampaign_smoke`: **23 once-per-campaign commands, 0 FAILED**, rc=0 — including `starter_gate_control` (315.2 s), `verify_blind` unpiped exit 0, `docstat --sweep` clean over 303 docs, and the per-game plans ×4; `bot_mutants` 53/53 both directions plus 17 variants; `prompt_guard --snapshot` over the run's rendered prompts at launch, rc=0. The snapshot holds **24** prompts — the full registry (16 game + 8 scene), of which the 8 `s1_parallax` files are the scheduled set per `suite.json` |
-| live check | first two trials (`s1_parallax__godot__t0`, `t1`) launched; each trial's own `artifacts/<tid>/prompt.txt` is **byte-identical** to the snapshot's rendered `s1_parallax__godot.txt` |
-| pending at this writing | turns, tokval per trial, wall clock per arm, and per-trial timestamps for the #172 spacing question; tier-1 gate; scene tier-2 grading; the 8-submission tier-3 pack and the 3 scene aspects (fidelity, motion, framework) — the first scene tier-3 rounds. The summary-table row and the `census.py` cumulative re-read land in the same update as those numbers |
+| terminal partition | **completed 2** (both godot) · **api_error 6**. The 6 are one external cause, not six failures: the CLI returned `429 … Weekly/Monthly Limit Exhausted` from **2026-09-02T21:37Z** — rust t0/t1 died mid-work at turns **395 / 253** after real spend, and the four ts/unity cells died at **turn 1**, ~190 s of retry each, at 0 tokval. Same external-cause class as `wg-g4b`'s null, but with 2 surviving completed cells. The driver's own behaviour is correct: it kept launching as slots freed, and every launch after the wall hit died at turn 1 |
+| records | **240.62 tokval** over the run's 8 records (`python3 eval/tools/census.py`, SCENE population, read 2026-09-03). Per trial, from the `[built]` lines of the build log: godot t0 **65.74** / 8354.3 s / 464 turns; godot t1 **87.02** / 11 287.7 s / 476; rust t0 **64.96** / 7439.1 s / 395; rust t1 **22.90** / 4506.3 s / 253; ts t0+t1 and unity t0+t1 **0.00** / ~180-197 s / 1 turn each |
+| live check | both godot trials' `artifacts/<tid>/prompt.txt` verified **byte-identical** to the snapshot's rendered `s1_parallax__godot.txt` before their agents' first turn landed |
+| grading, 2026-09-03 | tiers 1-2 only, on the 2 completed cells (`wholegame.py evaluate`, 34.4 s + 54.5 s). **Tier-1 gate: 9/9 on both.** `scene_probe`: godot t0 **7/7 = 1.000** — `layers.image_parallax` NOT MEASURED, "only 2 of 8 declared layers could be read in the frames at all"; godot t1 **7/8 = 0.875** — `image_parallax` measured and **FAILED**. Stack mean **0.938** (per-task first, then across tasks). Regime `gate-2026-08-23`, weights `{playbot: 1.0}` |
+| the `image_parallax` result is REAL and is the field's finding | First time the image-only criterion was ever **measured** on a completed submission. t1's verdict is a scene defect, not an instrument artefact: the probe telemetry reports perfectly ordered layers (`layers.depth_ordered` PASS on both — movement strictly decreasing with depth), and the pixels on t1 do not — nearest band shifted **0 px/frame**, a depth-2200 band **50 px/frame**. Separation over every stored scene grading: **0 pass / 6 fail / 3 unscored** (`scene_mutants.py --census --runs-root eval/runs`: "NO - AN OPEN QUESTION"). The criterion is conditionally scored by design (tasks/164): `not_established` → unscored when the frame experiment cannot be set up, a measured verdict when it can |
+| what did not happen | **No tier-3 aspect rounds** — the 8-submission field does not exist (2 of 8) and the quota window blocks judge rounds outright, so task 145 stays blocked on both counts. The tier-3 packs DID build for both completed cells (24 files, 199 014 / 207 836 chars, 12 frames each) and are stored. Re-running the 6 lost cells is an operator decision — the binding resource is the account's quota window, not the machine — and cannot start before the window resets |
+| #172 spacing | record timestamps: godot pair **0.4 ms** apart, ts pair **0.5 s** apart, unity pair **13 s** apart, the rust trials 48 min apart (slot-driven at parallelism 2). Whether the CLI launches *inside* a pair were staggered is visible only in the transcripts; the records alone do not answer the spacing question |
+
+**Never pool the 2 completed cells with the 6 api_error ones, and never state a stack
+comparison off 2 cells of one stack.** What this run establishes: the scene instrument
+ran end-to-end on completed submissions for the first time, and the one image-level
+criterion it could measure, it failed.
+
 
 ## THE FRAMES CHANNEL IS NOT EQUIVALENT ACROSS ARMS, and it never has been — measured 2026-08-23
 

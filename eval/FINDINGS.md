@@ -1,6 +1,6 @@
 # Eval findings
 
-Findings #19-#214 from building and running this evaluator. **Check whether a
+Findings #19-#215 from building and running this evaluator. **Check whether a
 number has been retracted before trusting it** — `eval/withdrawn.json` is the machine-readable
 half of that, and `docstat.py --withdrawn` enforces it over the live documents.
 
@@ -290,6 +290,7 @@ the thing run**, because a fitting hypothesis is exactly what stops people looki
 | **212** | a check that dies is not a check that reports: a crashing expectation stopped the mutant suite six expectations early, and the damage first read 3 red of 38 where the honest count was 10 — fail-closed in the large, under-counted in the detail | [fail-open](findings/fail-open.md) |
 | **213** | the partition of the stored tree was restated in two producers, and every restatement drifted — 92 against 91 for five days because no gate reads two producers against each other, and the repair's own pin stayed green on a refusal of the wrong cause | [certifies-nothing](findings/certifies-nothing.md) |
 | **214** | severing the one line that wires the keyboard to a fully-green submission's intent set moved 0 of 35 criteria: both copies grade 14/14 + 20/20 at overall 1.0000, so the grade certifies the probe/simulation path the probe input still reaches, not playability | [certifies-nothing](findings/certifies-nothing.md) |
+| **215** | the scene tier's trace criteria certify an ordering the pixels do not show: the frame-level parallax criterion has never passed on any stored scene — 0 passes in 9 gradings — and it failed on the only completed submission where it could be measured at all | [certifies-nothing](findings/certifies-nothing.md) |
 
 ---
 

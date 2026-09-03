@@ -6537,3 +6537,42 @@ Re-produced independently at merge by a second session: both copies re-warmed an
 establishes that the instrument cannot see this defect, not that any real submission has it.
 The fix — a criterion that exercises the real input path, validated in both directions — is a
 **criterion addition, i.e. a regime boundary**, deliberately not made here.
+
+## #215 - the scene tier's trace-derived criteria certify an ordering the pixels do not show: the frame-level parallax criterion has never passed on any stored scene, and it failed on the only completed submission where it could be measured
+
+**The first completed scene submissions in the project graded 9/9 on the tier-1 gate and
+7/7-7/8 on the probe, and the one criterion that reads the FRAMES failed where it could run
+at all.** The run: `wg-scene-s1field-2026-09-02`, whose 2 godot cells are the only
+`completed` scene trials in the corpus (the other 6 cells died at the account's quota wall,
+429, at 2026-09-02T21:37Z; `eval/RUNS.md` holds the partition). Both cells PASS
+`layers.depth_ordered` — the trace-derived criterion: over the whole run, unwrapped against
+each layer's own span, movement strictly decreases with declared depth, on t0 from 1416.4 at
+depth 0.85 to 50.2 at depth 24. `layers.image_parallax` — the same question asked of the
+frames — returned **not_established on t0** ("only 2 of 8 declared layers could be read in
+the frames at all"; 5 layers have under 10 rows no other declared band contains, 0/119 and
+0/60 among them, so nothing drawn there can be attributed to a declared layer) and a
+**measured FAIL on t1**: median shift by increasing declared depth 340 → **0 px/frame**,
+2200 → **50 px/frame**, 7000 → **0 px/frame** (nearest must be fastest by ≥ 2 px), with two
+layers' drawings agreeing with their own telemetry on only 70% and 0% of readable pairs.
+
+**The criterion has never once passed.** `scene_mutants.py --census --runs-root eval/runs`
+over all 9 stored scene gradings: **0 pass / 6 fail / 3 unscored — "NO - AN OPEN
+QUESTION"**, the only criterion in the scene set without both values on stored material. The
+history is not a clean instrument: the FAIL on the killed 2026-08-25 trial was withdrawn as
+untrustworthy (#162's repair), and tasks/164 made the criterion conditionally scored —
+`not_established` → unscored when the frame experiment cannot be set up — precisely so that
+an unmeasurable experiment would not masquerade as a verdict. What this run adds is the
+first completed-submission verdict on either side of that line, and it is a FAIL with
+stark evidence. The scene the agent built satisfies every probe-telemetry criterion while
+the frames show its nearest band static and a mid-depth band carrying the motion — the
+rendering does not show the parallax the simulation reports, which is the exact defect the
+image-only criterion exists to catch and the trace criteria cannot see.
+
+**What this does NOT establish.** n=2 cells, one stack, one scene. It does not say godot
+scenes fail this criterion, that ts/rust/unity would, or that the criterion itself is sound
+— its separation over stored material is still one-sided, and the census prints that as an
+open question rather than resolving it. What it does establish: the scene tier's grade, as
+it stands, is carried by trace-derived criteria, and a parallax scene can pass every one of
+them while failing the pixel-level check — the #214 shape, one tier down: **the grade
+certifies what the probe telemetry reports, not what a player sees.** 2026-09-03, from the
+first graded scene field (task 236).
